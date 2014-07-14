@@ -2,37 +2,41 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <dirent.h>
-
+#include <stdlib.h>
+#include <fcntl.h>
 #include "ece454rpc_types.h"
 
-using namespace std;
 
 typedef struct UsedFile{
 	int fd;
 	bool locked;
-	UsedFile *next;
+	struct UsedFile *next;
 } UsedFile;
-
-UsedFile *uf_head;
-UsedFile *latest_file;
-uf_head = (UsedFile *)malloc(sizeof(UsedFile));
-uf_head->fd = NULL;
-uf_head->locked = false;
-latest_file = uf_head;
 
 typedef struct MountedUser {
   char *ip;
-  MountedUser *next;
+  struct MountedUser *next;
 } MountedUser;
 
+return_type r;
+
+UsedFile *uf_head;
+UsedFile *latest_file;
 MountedUser *root;
 MountedUser *tail;
-root = malloc(sizeof(MountedUser));
-root->ip = "";
-root->next = NULL;
-tail = root;
 
-return_type r;
+int main(int argc, char*argv[]) {
+	uf_head = malloc(sizeof(UsedFile));
+	uf_head->fd = 0;
+	uf_head->locked = false;
+	latest_file = uf_head;
+
+	root = malloc(sizeof(MountedUser));
+	root->ip = "";
+	root->next = NULL;
+	tail = root;
+}
+
 
 int authenticate(char *user_ip) {
 	MountedUser *curr = root;
@@ -48,11 +52,11 @@ int authenticate(char *user_ip) {
 }
 
 int authorize_file(int user_fd) {
-	MountedUser *curr = root;
+	UsedFile *curr = uf_head;
 
 	while (curr != NULL) {
 		if (curr->fd == user_fd) {
-			if (curr->locked == true) { return 0 }
+			if (curr->locked == true) { return 0; }
 			return 1;
 		}
 		curr = curr->next;
@@ -75,16 +79,16 @@ return_type fsMount(const int nparams, arg_type* a)
 		return r;
 	}
 
-	char *user_ip = (char *)a->arg_val
+	char *user_ip = (char *)a->arg_val;
 
 	MountedUser *new_MountedUser = malloc(sizeof(MountedUser));
 	new_MountedUser->ip = user_ip;
-	new_MountedUser->next = NULL:
+	new_MountedUser->next = NULL;
 	tail->next = new_MountedUser;
 	tail = new_MountedUser;
 
     r.return_size = sizeof(int);
-	r.return_val = 1;
+	r.return_val = (void *) 1;
 
     return r;
 }
@@ -103,13 +107,13 @@ return_type fsUnmount(const int nparams, arg_type* a)
 		return r;
 	}
 
-	char *user_ip = (char *)a->arg_val
+	char *user_ip = (char *)a->arg_val;
 
-	MountedUser *prev = head;
-	MountedUser *curr = head -> next;
+	MountedUser *prev = root;
+	MountedUser *curr = root -> next;
 
 	r.return_size = sizeof(int);
-	r.return_val = -1;
+	r.return_val = (void *) -1;
 
 	while (curr != NULL) {
 		if (curr->ip == user_ip) {
@@ -141,7 +145,7 @@ return_type fsOpenDir(int nparams, arg_type* a) {
 	}
 
 	return_type error_val;
-	error_val.return_val = -1;
+	error_val.return_val = (void *) -1;
 	error_val.return_size = sizeof(int);
 
 	char *user_ip = (char *)a->arg_val;
@@ -151,7 +155,7 @@ return_type fsOpenDir(int nparams, arg_type* a) {
 
 	DIR *d = NULL;
     struct dirent *dir;
-    char *filepath[];
+    char filepath[500];
 
     d = opendir(".");
     if (d){
@@ -191,7 +195,7 @@ return_type fsOpen(const int nparams, arg_type* a)
 	}
 
 	return_type error_val;
-	error_val.return_val = -1;
+	error_val.return_val = (void *) -1;
 	error_val.return_size = sizeof(int);
 
 	char *user_ip = (char *)a->arg_val;
@@ -208,12 +212,12 @@ return_type fsOpen(const int nparams, arg_type* a)
 
 	int fd;
 	if (mode == 1) {
-		fd = open(filepath, O_CREAT | O_WR_ONLY | O_APPEND | O_TRUNC, S_IRUSR | S_IWUSR);
+		fd = open(filepath, O_CREAT | O_WRONLY | O_APPEND | O_TRUNC, S_IRUSR | S_IWUSR);
         //set lock here so others cannot use the file
 		UsedFile *openedFile;
-		if(uf_head->fd != NULL){
+		if(uf_head->fd != 0){
             openedFile->fd = fd;
-            openedFile->locked true;
+            openedFile->locked = true;
             latest_file.next = openedFile;
 		}else{
             uf_head->fd = fd;
@@ -242,15 +246,33 @@ return_type fsClose(int nparams, arg_type* a) {
     int fd = a->next->arg_val;
 
 	if (authenticate(user_ip) == 0) {
-		r.return_val = -1
-		r.return_size = sizeof(int)
+		r.return_val = -1;
+		r.return_size = sizeof(int);
 		return r
-;	}
+	}
 
 	r.return_val = close(fd);
 	r.return_size(sizeof(int));
 	return r;
 }
+
+bool isLocked(int fd) {
+	UsedFile *current;
+    current = uf_head;
+    while(current != NULL){
+        if (current->fd == fd){
+        	if (current->locked == true) {
+        		return true;
+        	}
+        	return false;
+            
+        }
+        current = current->next;
+    }
+
+    return false;
+}
+
 
 //nparams: fd -> count
 return_type fsRead(int nparams, arg_type* a) {
@@ -259,28 +281,33 @@ return_type fsRead(int nparams, arg_type* a) {
 		r.return_size = 0;
 	}
 
+	//TODO: make sure it works concurrently
+	// each reads starts from the next, so what happens when we have to reads
+	// from two different clients?
 	int fd = a->arg_val;
 	int count = a->next->arg_val;
-    char *buffer;
-    bool locked = false;
 
-    UsedFile current;
-    current = uf_head;
-    while(current->next != NULL){
-        if(current->fd == fd){
-            locked = true;
-            break;
-        }
-    }
+    char buffer[count];
+    
+    return_type err;
+    err.return_val = -1;
+    err.return_size = sizeof(int);
 
+    // TODO: If a user gets locked, the process should eventually finish the read
+    // How do we take care of this? Poll periodically.
+
+    bool locked = isLocked(fd);
     if(!locked){
-        read(fd, buffer, count);
+        if (read(fd, buffer, count) == -1) {
+        	return err;
+        }
+
         r.return_val = buffer;
         r.return_size = sizeof(buffer);
-    }else{
-        r.return_val = -1;
-        r.return_size = sizeof(int);
+    } else{
+        return err;
     }
+
     return r;
 }
 
@@ -291,3 +318,4 @@ return_type fsWrite(int nparams, arg_type* a){
 return_type fsRemove(int nparams, arg_type* a){
 
 }
+
