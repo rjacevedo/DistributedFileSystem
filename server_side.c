@@ -1,31 +1,32 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #include "ece454rpc_types.h"
 
 using namespace std;
 
-typedef struct ServerFile{
+typedef struct UsedFile{
 	int fd;
 	bool locked;
-	ServerFile *next;
+	UsedFile *next;
 } ServerFile;
 
-ServerFile *sf_head;
-ServerFile *latest_file;
-head = (ServerFile *)malloc(sizeof(ServerFile));
-head->fd = NULL;
-head->locked = false;
+UsedFile *uf_head;
+UsedFile *latest_file;
+uf_head = (UsedFile *)malloc(sizeof(UsedFile));
+uf_head->fd = NULL;
+uf_head->locked = false;
 
-typedef struct Node {
+typedef struct MountedUser {
   char *ip;
-  Node *next;
-} Node;
+  MountedUser *next;
+} MountedUser;
 
-Node *root;
-Node *tail;
-root = malloc(sizeof(Node));
+MountedUser *root;
+MountedUser *tail;
+root = malloc(sizeof(MountedUser));
 root->ip = "";
 root->next = NULL;
 tail = root;
@@ -33,7 +34,7 @@ tail = root;
 return_type r;
 
 int authenticate(char *user_ip) {
-	Node *curr = root;
+	MountedUser *curr = root;
 
 	while (curr != NULL) {
 		if (curr->ip == user_ip) {
@@ -46,7 +47,7 @@ int authenticate(char *user_ip) {
 }
 
 int authorize_file(int user_fd) {
-	Node *curr = sf_head;
+	MountedUser *curr = sf_head;
 
 	while (curr != NULL) {
 		if (curr->fd == user_fd) {
@@ -59,7 +60,8 @@ int authorize_file(int user_fd) {
 	return -1;
 }
 
-return_type mount(const int nparams, arg_type* a)
+//nparams: user_ip
+return_type fsMount(const int nparams, arg_type* a)
 {
 
 	// Server:
@@ -74,11 +76,11 @@ return_type mount(const int nparams, arg_type* a)
 
 	char *user_ip = (char *)a->arg_val
 
-	Node *new_node = malloc(sizeof(Node));
-	new_node->ip = user_ip;
-	new_node->next = NULL:
-	tail->next = new_node;
-	tail = new_node;
+	MountedUser *new_MountedUser = malloc(sizeof(MountedUser));
+	new_MountedUser->ip = user_ip;
+	new_MountedUser->next = NULL:
+	tail->next = new_MountedUser;
+	tail = new_MountedUser;
 
 	r.return_val = 1;
 	r.return_size = sizeof(int);
@@ -86,7 +88,8 @@ return_type mount(const int nparams, arg_type* a)
     return r;
 }
 
-return_type unmount(const int nparams, arg_type* a)
+//nparams: user_ip
+return_type fsUnmount(const int nparams, arg_type* a)
 {
 
 	// Server:
@@ -101,8 +104,8 @@ return_type unmount(const int nparams, arg_type* a)
 
 	char *user_ip = (char *)a->arg_val
 
-	Node *prev = head;
-	Node *curr = head -> next;
+	MountedUser *prev = head;
+	MountedUser *curr = head -> next;
 
 	r.return_size = sizeof(int);
 	r.return_val = -1;
@@ -122,7 +125,63 @@ return_type unmount(const int nparams, arg_type* a)
     return r;
 }
 
-return_type fsopen(const int nparams, arg_type* a)
+//nparams: user_ip -> filename
+return_type fsOpenDir(int nparams, arg_type* a) {
+	// Use stat to check if folder already exists
+	// if exists
+		// Use "ls" to get folder names and then add to vector for FSDIR
+		// Create FSDIR from the found folder
+		// return FSDIR
+	// else:
+	//		return error_num
+    if (nparams != 2) {
+		r.return_val = NULL;
+		r.return_size = 0;
+	}
+
+	return_type error_val;
+	error_val.return_val = -1;
+	error_val.return_size = sizeof(int);
+
+	char *user_ip = (char *)a->arg_val;
+	if (authenticate(user_ip) == 0) {return error_val;}
+
+    char *filename = (char *)a->next->arg_val;
+
+	DIR *d = NULL;
+    struct dirent *dir;
+    char *filepath[];
+
+    d = opendir(".");
+    if (d){
+        while ((dir = readdir(d)) != NULL){
+            //pop onto the stack
+            if(dir->d_name == filename){
+
+            }
+        }
+        closedir(d);
+    }
+
+	struct stat buffer;
+
+	int err = stat(filepath, &buffer);
+	if (err == -1) {return error_val;}
+	if (S_ISDIR(buffer.st_mode)) {
+
+	}
+}
+
+return_type fsCloseDir(int nparams, arg_type* a){
+
+}
+
+return_type fsReadDir(int nparams, arg_type* a){
+
+}
+
+//params: user_ip -> filepath -> mode
+return_type fsOpen(const int nparams, arg_type* a)
 {
 	if (nparams != 3) {
 		r.return_val = NULL;
@@ -144,11 +203,22 @@ return_type fsopen(const int nparams, arg_type* a)
 
 	int err = stat(filepath, &buffer);
 	if (err == -1 && mode == 0) {return error_val;}
-	if (S_ISDIR(buffer.st_mode)) {return error_val;} 
+	if (S_ISDIR(buffer.st_mode)) {return error_val;}
 
 	int fd;
 	if (mode == 1) {
 		fd = open(filepath, O_CREAT | O_WR_ONLY | O_APPEND | O_TRUNC, S_IRUSR | S_IWUSR);
+        //set lock here so others cannot use the file
+		UsedFile *openedFile;
+		if(uf_head->fd != NULL){
+            openedFile->fd = fd;
+            openedFile->locked true;
+            latest_file.next = openedFile;
+		}else{
+            uf_head->fd = fd;
+            uf_head->locked = true;
+            latest_file = uf_head;
+		}
 	}
 	else {
 		fd = open(filepath, O_RDONLY);
@@ -156,38 +226,67 @@ return_type fsopen(const int nparams, arg_type* a)
 
 	r.return_val = fd;
 	r.return_size = sizeof(int);
-	
+
 	return r;
 }
 
-return_type fsclose(int nparams, arg_type* a) {
+//nparams: user_ip -> fd
+return_type fsClose(int nparams, arg_type* a) {
 	if (nparams != 2) {
 		r.return_val = NULL;
 		r.return_size = 0;
 	}
 
-	int fd = a->arg_val;
-	char *user_ip = (char *)a->next->arg_val;
+	char *user_ip = (char *)a->arg_val;
+    int fd = a->next->arg_val;
 
 	if (authenticate(user_ip) == 0) {
 		r.return_val = -1
 		r.return_size = sizeof(int)
 		return r
 ;	}
-	
+
 	r.return_val = close(fd);
 	r.return_size(sizeof(int));
 	return r;
 }
 
-return_type fsread(int nparams, arg_type* a) {}
+//nparams: fd -> count
+return_type fsRead(int nparams, arg_type* a) {
+    if (nparams != 2) {
+		r.return_val = NULL;
+		r.return_size = 0;
+	}
 
-return_type opendir(foldername) {
-	// Start searching for foldername from root using bredth-first-search
-	// if exists
-		// Use "ls" to get folder names and then add to vector for FSDIR
-		// Create FSDIR from the found folder
-		// return FSDIR
-	// else:
-	//		return error_num
+	int fd = a->arg_val;
+	int count = a->next->arg_val;
+    char *buffer;
+    bool locked = false;
+
+    UsedFile current;
+    current = uf_head;
+    while(current->next != NULL){
+        if(current->fd == fd){
+            locked = true;
+            break;
+        }
+    }
+
+    if(!locked){
+        read(fd, buffer, count);
+        r.return_val = buffer;
+        r.return_size = sizeof(buffer);
+    }else{
+        r.return_val = -1;
+        r.return_size = sizeof(int);
+    }
+    return r;
+}
+
+return_type fsWrite(int nparams, arg_type* a){
+
+}
+
+return_type fsRemove(int nparams, arg_type* a){
+
 }
