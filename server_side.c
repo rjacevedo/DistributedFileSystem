@@ -285,7 +285,26 @@ return_type fsRead(int nparams, arg_type* a) {
 }
 
 return_type fsWrite(int nparams, arg_type* a){
+    if (nparams != 3) {
+		r.return_val = NULL;
+		r.return_size = 0;
+	}
 
+	int fd = a->arg_val;
+	char *buffer = a->next->arg_val;
+	int count = a->next->next->arg_val;
+
+    if(!isLocked(fd)){
+        int bytesWritten = write(fd, buffer, count);
+        if(bytesWritten > 0){
+            r.return_val = (char *)bytesWritten;
+            r.return_size = sizeof(int);
+        }else{
+            return error_val;
+        }
+    }else{
+        return error_val;
+    }
 }
 
 return_type fsRemove(int nparams, arg_type* a){
