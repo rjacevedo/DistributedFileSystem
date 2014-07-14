@@ -11,13 +11,14 @@ typedef struct UsedFile{
 	int fd;
 	bool locked;
 	UsedFile *next;
-} ServerFile;
+} UsedFile;
 
 UsedFile *uf_head;
 UsedFile *latest_file;
 uf_head = (UsedFile *)malloc(sizeof(UsedFile));
 uf_head->fd = NULL;
 uf_head->locked = false;
+latest_file = uf_head;
 
 typedef struct MountedUser {
   char *ip;
@@ -47,7 +48,7 @@ int authenticate(char *user_ip) {
 }
 
 int authorize_file(int user_fd) {
-	MountedUser *curr = sf_head;
+	MountedUser *curr = root;
 
 	while (curr != NULL) {
 		if (curr->fd == user_fd) {
@@ -82,8 +83,8 @@ return_type fsMount(const int nparams, arg_type* a)
 	tail->next = new_MountedUser;
 	tail = new_MountedUser;
 
+    r.return_size = sizeof(int);
 	r.return_val = 1;
-	r.return_size = sizeof(int);
 
     return r;
 }
