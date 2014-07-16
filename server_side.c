@@ -37,13 +37,13 @@ typedef struct FSDIR {
     DIR *parent;
 } FSDIR;
 
-UsedFile *uf_head;
-UsedFile *latest_file;
-OpenedFile *op_head;
-OpenedFile *op_current;
-OpenedFile *op_tail;
-MountedUser *root;
-MountedUser *tail;
+UsedFile *uf_head = NULL;
+UsedFile *latest_file = NULL;
+OpenedFile *op_head = NULL;
+OpenedFile *op_current = NULL;
+OpenedFile *op_tail = NULL;
+MountedUser *root = NULL;
+MountedUser *tail = NULL;
 
 return_type r;
 return_type error_val;
@@ -51,7 +51,7 @@ error_val.return_val = (void *) -1;
 error_val.return_size = sizeof(int);
 
 int main(int argc, char*argv[]) {
-	uf_head = (UsedFile *)malloc(sizeof(UsedFile));
+	/*uf_head = (UsedFile *)malloc(sizeof(UsedFile));
 	uf_head->fd = 0;
 	uf_head->locked = false;
 	latest_file = uf_head;
@@ -66,7 +66,7 @@ int main(int argc, char*argv[]) {
 	root = (MountedUser *)malloc(sizeof(MountedUser));
 	root->ip = "";
 	root->next = NULL;
-	tail = root;
+	tail = root;*/
 }
 
 
@@ -98,7 +98,7 @@ int authorize_file(int user_fd) {
 }
 
 //nparams: user_ip
-return_type fsMount(const int nparams, arg_type* a)
+return_type mount(const int nparams, arg_type* a)
 {
 
 	// Server:
@@ -113,20 +113,26 @@ return_type fsMount(const int nparams, arg_type* a)
 
 	char *user_ip = (char *)a->arg_val;
 
-	MountedUser *new_MountedUser = (MountedUser *)malloc(sizeof(MountedUser));
-	new_MountedUser->ip = user_ip;
-	new_MountedUser->next = NULL;
-	tail->next = new_MountedUser;
-	tail = new_MountedUser;
+    if(root == NULL){
+        root = (MountedUser *)malloc(sizeof(MountedUser));
+        root->ip = user_ip;
+        tail = root;
+    }else{
+        MountedUser *new_MountedUser = (MountedUser *)malloc(sizeof(MountedUser));
+        new_MountedUser->ip = user_ip;
+        new_MountedUser->next = NULL;
+        tail->next = new_MountedUser;
+        tail = new_MountedUser;
+    }
 
     r.return_size = sizeof(int);
-	r.return_val = (void *) 1;
+	r.return_val = (void *) 0;
 
     return r;
 }
 
 //nparams: user_ip
-return_type fsUnmount(const int nparams, arg_type* a)
+return_type unmount(const int nparams, arg_type* a)
 {
 
 	// Server:
@@ -163,7 +169,7 @@ return_type fsUnmount(const int nparams, arg_type* a)
 }
 
 //nparams: user_ip -> filepath
-return_type fsOpenDir(int nparams, arg_type* a) {
+return_type openDir(int nparams, arg_type* a) {
 	// Use stat to check if folder already exists
 	// if exists
 		// Use "ls" to get folder names and then add to vector for FSDIR
@@ -236,14 +242,14 @@ return_type fsOpenDir(int nparams, arg_type* a) {
 }
 
 //params: FSDIR*
-return_type fsCloseDir(int nparams, arg_type* a){
+return_type closeDir(int nparams, arg_type* a){
     if (nparams != 1) {
 		r.return_val = NULL;
 		r.return_size = 0;
 		return r;
 	}
 
-    FSDIR *fsdir = a->arg_val;
+    FSDIR *fsdir = (FSDIR *)a->arg_val;
 
     int err = closedir(d);
     if(err == -1){
@@ -259,14 +265,14 @@ return_type fsCloseDir(int nparams, arg_type* a){
 }
 
 //nparams: FSDIR*
-return_type fsReadDir(int nparams, arg_type* a){
+return_type readDir(int nparams, arg_type* a){
     if (nparams != 1) {
 		r.return_val = NULL;
 		r.return_size = 0;
 		return r;
 	}
 
-    FSDIR *fsdir = a.arg_val;
+    FSDIR *fsdir = (FSDIR *)a->arg_val;
 
     struct fsDirent *fsdirent = (struct fsDirent *)malloc(sizeof(struct fsDirent));
 
@@ -287,7 +293,7 @@ return_type fsReadDir(int nparams, arg_type* a){
 }
 
 //params: user_ip -> filepath -> mode
-return_type fsOpen(const int nparams, arg_type* a){
+return_type open(const int nparams, arg_type* a){
 	if (nparams != 3) {
 		r.return_val = NULL;
 		r.return_size = 0;
@@ -345,7 +351,7 @@ return_type fsOpen(const int nparams, arg_type* a){
 }
 
 //nparams: user_ip -> fd
-return_type fsClose(int nparams, arg_type* a) {
+return_type close(int nparams, arg_type* a) {
 	if (nparams != 2) {
 		r.return_val = NULL;
 		r.return_size = 0;
@@ -353,7 +359,7 @@ return_type fsClose(int nparams, arg_type* a) {
 	}
 
 	char *user_ip = (char *)a->arg_val;
-    int fd = a->next->arg_val;
+    int fd = (int)a->next->arg_val;
 
 	if (authenticate(user_ip) == 0) {
 		r.return_val = (void *)-1;
@@ -407,9 +413,9 @@ bool isLocked(int fd) {
 }
 
 
-//nparams: fd -> count
-return_type fsRead(int nparams, arg_type* a) {
-    if (nparams != 2) {
+//nparams: fd -> buf -> count
+return_type read(int nparams, arg_type* a) {
+    if (nparams != 3) {
 		r.return_val = NULL;
 		r.return_size = 0;
 		return r;
@@ -418,18 +424,19 @@ return_type fsRead(int nparams, arg_type* a) {
 	//TODO: make sure it works concurrently
 	// each reads starts from the next, so what happens when we have to reads
 	// from two different clients?
-	int fd = a->arg_val;
-	int count = a->next->arg_val;
-    char *buffer = malloc(count*sizeof(char));
+	int fd = (int)a->arg_val;
+	void *buf = (void *)a->next->arg_val;
+	int count = (int)a->next->next->arg_val;
+
     int bytesRead = -1;
 
     op_current = op_head;
     while(op_current != NULL){
         if(op_current->fd == fd && op_current->fd == fd){
-            bytesRead = read(fd, buffer, count);
+            bytesRead = read(fd, buf, count);
 
-            r.return_val = (void *)buffer;
-            r.return_size = sizeof(buffer);
+            r.return_val = (void *)buf;
+            r.return_size = sizeof(buf);
             return r;
         }
         op_current = op_current->next;
@@ -454,16 +461,16 @@ return_type fsRead(int nparams, arg_type* a) {
     return r;*/
 }
 
-return_type fsWrite(int nparams, arg_type* a){
+return_type write(int nparams, arg_type* a){
     if (nparams != 3) {
 		r.return_val = NULL;
 		r.return_size = 0;
 		return r;
 	}
 
-	int fd = a->arg_val;
-	char *buffer = a->next->arg_val;
-	int count = a->next->next->arg_val;
+	int fd = (int)a->arg_val;
+	char *buffer = (void *)a->next->arg_val;
+	int count = (unsigned int)a->next->next->arg_val;
 	int bytesWritten = -1;
 
     op_current = op_head;
@@ -490,7 +497,7 @@ return_type fsWrite(int nparams, arg_type* a){
     }*/
 }
 
-return_type fsRemove(int nparams, arg_type* a){
+return_type remove(int nparams, arg_type* a){
     //loop through the code and find the file with the filename
     //delete the file if it is not locked
 }
