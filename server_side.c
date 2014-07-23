@@ -19,14 +19,7 @@ typedef struct OpenedFile {
     struct OpenedFile *next;
 } OpenedFile;
 
-typedef struct FSDIR {
-    File *files;
-    File *currentFile;
-    DIR *parent;
-} FSDIR;
-
 OpenedFile *op_head = NULL;
-OpenedFile *op_current = NULL;
 OpenedFile *op_tail = NULL;
 MountedUser *root = NULL;
 MountedUser *tail = NULL;
@@ -152,8 +145,6 @@ return_type sOpenDir(int nparams, arg_type* a) {
     struct stat buffer;
     int err;
 
-    FSDIR *fsdir = (FSDIR *)malloc(sizeof(FSDIR));
-
 	err = stat(filepath, &buffer);
 	if (err == -1) {
         r.return_val = (void *)NULL;
@@ -195,12 +186,12 @@ return_type sOpenDir(int nparams, arg_type* a) {
         closedir(d);
     }
 
-    r.return_val = buf;
+    r.return_val = (void *)buf;
     r.return_size = sizeof(buf);
     return r;
 }
 
-//params: FSDIR*
+//params: filepath
 return_type sCloseDir(int nparams, arg_type* a){
     if (nparams != 1) {
 		r.return_val = NULL;
@@ -279,7 +270,7 @@ return_type sOpen(const int nparams, arg_type* a){
 		fd = open(filepath, O_RDONLY | S_IRUSR);
 	}
 
-	op_current = op_head;
+    OpenedFile *op_current = op_head;
     while(op_current != NULL){
         if(op_current->fd == fd){
             return error_val;
@@ -319,9 +310,8 @@ return_type sClose(int nparams, arg_type* a) {
 		return error_val;
 	}
 
-    OpenedFile op_prev;
-    op_current = op_head;
-    op_prev = op_current;
+    OpenedFile *op_current = op_head;
+    OpenedFile *op_prev = op_current;
     while(op_current != NULL){
         if(op_current->fd == fd) {
             if (op_current->ip == user_ip){
@@ -370,7 +360,7 @@ return_type sRead(int nparams, arg_type* a) {
 
     int bytesRead = -1;
 
-    op_current = op_head;
+    OpenedFile *op_current = op_head;
     while(op_current != NULL){
         if (op_current->fd == fd) {
             if (op_current->ip == user_ip) {
@@ -407,7 +397,7 @@ return_type sWrite(int nparams, arg_type* a){
 		return error_val;
 	}
 
-    op_current = op_head;
+    OpenedFile *op_current = op_head;
     while(op_current != NULL){
         if(op_current->fd == fd)
             if (op_current->ip == user_ip){
@@ -438,7 +428,7 @@ return_type sRemove(int nparams, arg_type* a){
 
     int fd = open(filepath, O_RDONLY);
 
-    op_current = op_head;
+    OpenedFile *op_current = op_head;
     while (op_current != NULL) {
         if (op_current->fd == fd) {
             return error_val;
