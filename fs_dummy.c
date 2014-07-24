@@ -449,16 +449,19 @@ int fsRead(int fd, void *buf, const unsigned int count) {
     char *rootname = findRootName(of->path);
     mount *current_mount = findMount(rootname);
 
-    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRead", 3, strlen(interfaceip), interfaceip,
-        sizeof(int), fd, sizeof(int), count);
+    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRead", 4, strlen(interfaceip), interfaceip,
+        sizeof(int), fd, sizeof(int), sizeof(buf), sizeof(int), count);
     
-    buf = (void *)ans;
-    if((int)r.return_val > 0){
-        return (int)r.return_val;
+    int bytesread;
+    memcpy(&bytesread, ans, sizeof(int));
+    ans += sizeof(int);
+
+    if(bytesread > 0){
+        memcpy(buf, ans, bytesread);
+        return bytesread;
     }else{
         return -1;
     }
-
 }
 
 int fsWrite(int fd, const void *buf, const unsigned int count) {

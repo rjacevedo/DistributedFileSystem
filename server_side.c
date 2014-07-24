@@ -399,9 +399,13 @@ return_type sWrite(int nparams, arg_type* a){
 
     char *user_ip = (char *)a->arg_val;
 	int fd = (int)a->next->arg_val;
-	char *buffer = (void *)a->next->next->arg_val;
+	int bufsize = (int)a->next->next->arg_val;
 	int count = (unsigned int)a->next->next->next->arg_val;
 	int bytesWritten = -1;
+
+    char buff[bufsize];
+    char combined[bufsize + sizeof(int)];
+    char *ptr = combined;
 
     if (authenticate(user_ip) == 0) {
 		return error_val;
@@ -411,10 +415,12 @@ return_type sWrite(int nparams, arg_type* a){
     while(op_current != NULL){
         if(op_current->fd == fd)
             if (op_current->ip == user_ip){
-                bytesWritten = write(fd, buffer, count);
-
-                r.return_val = (void *)bytesWritten;
-                r.return_size = sizeof(int);
+                bytesWritten = write(fd, buff, count);
+                memcpy(ptr, &bytesWritten, sizeof(int));
+                ptr += sizeof(int);
+                memcpy(ptr, &buff, bytesWritten);
+                r.return_val = (void *)combined;
+                r.return_size = sizeof(combined);
                 return r;
             }
             else {
