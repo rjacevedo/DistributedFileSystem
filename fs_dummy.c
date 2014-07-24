@@ -112,7 +112,7 @@ char *findRootName(char *fullpath) {
     else {
         return fullpath;
     }
-    
+
     char *localFolderName = malloc(index);
     strncpy(localFolderName, fullpath, index);
     return localFolderName;
@@ -144,7 +144,7 @@ int addMount(char *ip, int port, char *localFolderName) {
         m_head->ipOrDomName = ip;
         m_head->port = srvPort;
         m_head->folderName = localFolderName;
-        
+
         // Initialize a first dummy FSDIR
         m_head->opendirs = malloc(sizeof(FSDIR));
         m_head->opendirs->currentFile = 0;
@@ -289,9 +289,9 @@ OpenFile *findOpenFile(int fd) {
 }
 
 int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *localFolderName) {
-    char *interfaceip = obtaininterfaceip("wlan0")    
+    char *interfaceip = obtaininterfaceip("wlan0")
 
-    return_type ans = make_remote_call(srvIpOrDomName, 
+    return_type ans = make_remote_call(srvIpOrDomName,
         srvPort, "sMount", 2, strlen(localFolderName), (void *)localFolderName, strlen(interfaceip), (void *) interfaceip);
 
     if(*(int *)ans.return_val == 0){
@@ -451,7 +451,7 @@ int fsRead(int fd, void *buf, const unsigned int count) {
 
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRead", 4, strlen(interfaceip), interfaceip,
         sizeof(int), fd, sizeof(int), sizeof(buf), sizeof(int), count);
-    
+
     int bytesread;
     memcpy(&bytesread, ans, sizeof(int));
     ans += sizeof(int);
@@ -489,7 +489,7 @@ int fsRemove(const char *name) {
     free(rootname);
 
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRemove", 2, strlen(interfaceip), interfaceip);
-    
+
     if (*(int *)ans.return_val == 0) {
         return removeOpenFile(fd);
     }

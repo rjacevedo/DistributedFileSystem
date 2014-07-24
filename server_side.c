@@ -4,7 +4,8 @@
 #include <dirent.h>
 #include <stdlib.h>
 #include <fcntl.h>
-#include "ece454rpc_types.h"
+#include <string.h>
+#include "simplified_rpc/ece454rpc_types.h"
 
 //should have linked list for mounted and opened files
 typedef struct MountedUser {
@@ -25,9 +26,7 @@ MountedUser *root = NULL;
 MountedUser *tail = NULL;
 
 return_type r;
-return_type error_val;
-error_val.return_val = (void *) -1;
-error_val.return_size = sizeof(int);
+return_type error_val = {(void *) -1, sizeof(int)};
 
 int authenticate(char *user_ip) {
 	MountedUser *curr = root;
@@ -43,17 +42,16 @@ int authenticate(char *user_ip) {
 }
 
 int authorize_file(int user_fd) {
-	UsedFile *curr = uf_head;
+	OpenedFile *curr = op_head;
 
 	while (curr != NULL) {
 		if (curr->fd == user_fd) {
-			if (curr->locked == true) { return 0; }
 			return 1;
 		}
 		curr = curr->next;
 	}
 
-	return -1;
+	return 0;
 }
 
 //nparams: user_ip
@@ -107,9 +105,9 @@ return_type sUnmount(const int nparams, arg_type* a)
 
 	while (curr != NULL) {
         if (curr->ip == user_ip) {
-            if(curr == head){
+            if(curr == root){
                 free(curr);
-                head == NULL;
+                root == NULL;
             }else{
                 prev->next = curr->next;
                 free(curr);
