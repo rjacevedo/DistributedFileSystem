@@ -209,34 +209,6 @@ return_type sCloseDir(int nparams, arg_type* a){
     return r;
 }
 
-//nparams: FSDIR*
-/*return_type sReadDir(int nparams, arg_type* a){
-    if (nparams != 1) {
-		r.return_val = NULL;
-		r.return_size = 0;
-		return r;
-	}
-
-    FSDIR *fsdir = (FSDIR *)a->arg_val;
-
-    struct fsDirent *fsdirent = (struct fsDirent *)malloc(sizeof(struct fsDirent));
-
-    if(fsdir->currentFile != NULL){
-        fsdirent->entName = fsdir->currentFile->filename;
-        fsdirent->entType = fsdir->currentFile->type;
-
-        fsdir->currentFile = fsdir->currentFile->next;
-
-        r.return_val = (void *)fsdirent;
-        r.return_size = sizeof(fsdirent);
-        return r;
-    }else{
-        r.return_val = NULL;
-        r.return_size = 0;
-        return r;
-    }
-}*/
-
 //params: user_ip -> filepath -> mode
 return_type sOpen(const int nparams, arg_type* a){
 	if (nparams != 3) {
@@ -349,7 +321,7 @@ return_type sRead(int nparams, arg_type* a) {
 
     char *user_ip = (char *)a->arg_val;
 	int fd = (int)a->next->arg_val;
-	void *buf = (void *)a->next->next->arg_val;
+	int bufsize = (int)a->next->next->arg_val;
 	int count = (int)a->next->next->next->arg_val;
 
     if (authenticate(user_ip) == 0) {
@@ -357,14 +329,21 @@ return_type sRead(int nparams, arg_type* a) {
 	}
 
     int bytesRead = -1;
+    char buff[bufsize];
+    void *ret_buff = malloc(bufsize + sizeof(int));
+    void *ptr = ret_buff;
 
     OpenedFile *op_current = op_head;
     while(op_current != NULL){
         if (op_current->fd == fd) {
             if (op_current->ip == user_ip) {
-                bytesRead = read(fd, buf, count);
-                r.return_val = (void *)bytesRead;
-                r.return_size = sizeof(int);
+                bytesRead = read(fd, buff, count);
+                memcpy(ptr, &bytesRead, sizeof(int))
+                ptr += sizeof(int);
+                memcpy(ptr, buff, sizeof(bufsize));
+
+                r.return_val = ret_buff;
+                r.return_size = sizeof(ret_buff);
                 return r;
             }
             else {
@@ -392,8 +371,8 @@ return_type sWrite(int nparams, arg_type* a){
 	int bytesWritten = -1;
 
     char buff[bufsize];
-    char combined[bufsize + sizeof(int)];
-    char *ptr = combined;
+    void *combined = malloc(bufsize + sizeof(int));
+    void *ptr = combined;
 
     if (authenticate(user_ip) == 0) {
 		return error_val;
@@ -449,4 +428,19 @@ return_type sRemove(int nparams, arg_type* a){
     }
 
     return error_val;
+}
+
+int main() {
+    register_procedure("sMount", 2, sMount);
+    register_procedure("sUnmount", 1, sUnmount);
+    register_procedure("sOpenDir", 2, sOpenDir);
+    register_procedure("sCloseDir", 2, sCloseDir);
+    register_procedure("sOpen", 3, sOpen);
+    register_procedure("sClose", 2, sClose);
+    register_procedure("sRead", 4, sRead);
+    register_procedure("sWrite", 4, sWrite);
+    register_procedure("sRemove", 2, sRemove);
+
+    launch_server();
+    return 0;
 }

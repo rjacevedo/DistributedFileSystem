@@ -14,14 +14,21 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include "fsOtherIncludes.h" /* At the minimum, this should define
-				the type FSDIR. */
+// #include "fsOtherIncludes.h" /* At the minimum, this should define
+				// the type FSDIR. */
 
 struct fsDirent {
     char entName[256];
     unsigned char entType; /* 0 for file, 1 for folder,
 			      -1 otherwise. */
 };
+
+typedef struct FSDIR {
+    struct fsDirent files[100];
+    int currentFile;
+    char *path;
+    struct FSDIR *next;
+} FSDIR;
 
 extern int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *localFolderName);
 extern int fsUnmount(const char *localFolderName);
