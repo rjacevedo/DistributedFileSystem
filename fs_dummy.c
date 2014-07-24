@@ -11,8 +11,15 @@
 #include "ece454_fs.h"
 #include "ece454rpc_types.h"
 #include <string.h>
-#include "server_side.c"
+// #include "server_side.c"
 #include <errno.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <net/if.h>
+#include <ifaddrs.h>
 
 typedef struct OpenFile {
     int fd;
@@ -20,15 +27,8 @@ typedef struct OpenFile {
     struct OpenFile *next;
 } OpenFile;
 
-mount *of_head = NULL;
-mount *of_tail = NULL;
-
-typedef struct FSDIR {
-    struct fsDirent files[100]
-    int currentFile;
-    char *path;
-    struct FSDIR *next;
-} FSDIR;
+OpenFile *of_head = NULL;
+OpenFile *of_tail = NULL;
 
 typedef struct mount {
     char *ipOrDomName;
@@ -118,8 +118,8 @@ char *findRootName(char *fullpath) {
     return localFolderName;
 }
 
-mount findMount(char *localFolderName) {
-    mount curr = m_head;
+mount *findMount(char *localFolderName) {
+    mount *curr = m_head;
     int found = 0;
     while(curr != NULL) {
         if (curr->foldername == localFolderName) {
