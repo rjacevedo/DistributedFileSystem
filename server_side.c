@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
-#include "simplified_rpc/server_stub.c"
+//#include "simplified_rpc/server_stub.c"
+#include "simplified_rpc/ece454rpc_types.h"
 
 //should have linked list for mounted and opened files
 typedef struct MountedUser {
@@ -114,7 +115,7 @@ return_type sUnmount(const int nparams, arg_type* a)
         if (curr->ip == user_ip) {
             if(curr == root){
                 free(curr);
-                root == NULL;
+                root = NULL;
             }else{
                 prev->next = curr->next;
                 free(curr);
@@ -176,12 +177,13 @@ return_type sOpenDir(int nparams, arg_type* a) {
             strcat(concat_buf, filepath);
             strcat(concat_buf, dir->d_name);
             err = stat(concat_buf, &buffer);
+            int zero = 0;
             if(err == -1){
                 memcpy(ptr, (void *)-1, sizeof(int));
             }else if(S_ISDIR(buffer.st_mode)){
                 memcpy(ptr, (void *)1, sizeof(int));
             }else{
-                memcpy(ptr, 0, sizeof(int));
+                memcpy(ptr, &zero, sizeof(int));
             }
             ptr += sizeof(int);
 
@@ -220,41 +222,46 @@ return_type sOpenDir(int nparams, arg_type* a) {
 
 //params: filepath
 return_type sCloseDir(int nparams, arg_type* a){
-    if (nparams != 1) {
+    if (nparams != 2) {
 		r.return_val = NULL;
 		r.return_size = 0;
 		return r;
 	}
 
+	char *user_ip = (char *)a->arg_val;
+	if (authenticate(user_ip) == 0) {return error_val;}
+
     char *filepath = a->arg_val;
 
-    MountedUser current = root;
+    MountedUser *current = root;
     while(current != NULL){
         if(current->ip == user_ip){
             FSDIR *directory = current->opendirs;
             FSDIR *dir_prev = NULL;
             while(directory->clientString != NULL){
                 if(directory->clientString == filepath){
-                    if(directory == root){
-                        FSDIR *old_root = root;
-                        root = root->next;
-
-                        free(old_root);
-                    }else{
-                        dir_prev->next = directory->next
-                        free(directory);
-                    }
-
                     //try closing the dir
-                    int err = closedir(filepath);
+                    int err = closedir(directory->storedDir);
                     if(err == -1){
                         return error_val;
                     }
 
-                    r.return_val = (void *)0;
+                    if(dir_prev == NULL){
+                        FSDIR *old_root = directory;
+                        current->opendirs = directory->next;
+
+                        free(old_root);
+                    }else{
+                        dir_prev->next = directory->next;
+                        free(directory);
+                    }
+
+                    int zero = 0;
+                    r.return_val = (void *)&zero;
                     r.return_size = sizeof(int);
                     return r;
                 }
+                dir_prev = directory;
                 directory = directory->next;
             }
         }
@@ -275,36 +282,40 @@ return_type sReadDir(const int nparams, arg_type* a){
 
 	char *filepath = (char *)a->next->arg_val;
 
-    MountedUser current = root;
+    MountedUser *current = root;
     while(current != NULL){
         if(current->ip == user_ip){
             FSDIR *directory = current->opendirs;
             while(directory != NULL){
                 if(directory->clientString == filepath){
-                    DIR *readDirectory = readdir(directory->storedDir);
+                    struct dirent *readDirectory = readdir(directory->storedDir);
 
                     void *return_buffer = malloc(256);
                     void *return_ptr = return_buffer;
                     struct stat buffer;
-                    err = stat(filepath, &buffer);
+                    int err = stat(filepath, &buffer);
+                    if(err == -1){
+                        return error_val;
+                    }
 
-                    memcpy(return_ptr, sizeof(int), sizeof(int));
+                    memcpy(return_ptr, (void *)sizeof(int), sizeof(int));
                     return_ptr += sizeof(int);
-                    if(S_ISREG(buffer->st_mode)){
-                        memcpy(return_ptr, 0, sizeof(int));
+                    int zero = 0;
+                    if(S_ISREG(buffer.st_mode)){
+                        memcpy(return_ptr, (void *)&zero, sizeof(int));
                         return_ptr += sizeof(int);
-                    }else if(S_ISDIR(buffer->st_mode)){
-                        memcpy(return_ptr, 1, sizeof(int));
+                    }else if(S_ISDIR(buffer.st_mode)){
+                        memcpy(return_ptr, (void *)1, sizeof(int));
                         return_ptr += sizeof(int);
                     }else{
-                        memcpy(return_ptr, -1, sizeof(int));
+                        memcpy(return_ptr, (void *)-1, sizeof(int));
                         return_ptr += sizeof(int);
                     }
 
-                    memcpy(return_ptr, strlen(readDirectory->dd_name), sizeof(int));
+                    memcpy(return_ptr, (void *)strlen(readDirectory->d_name), sizeof(int));
                     return_ptr += sizeof(int);
-                    memcpy(return_ptr, readDirectory->dd_name, strlen(readDirectory->dd_name));
-                    return_ptr += strlen(readDirectory->dd_name);
+                    memcpy(return_ptr, (void *)readDirectory->d_name, strlen(readDirectory->d_name));
+                    return_ptr += strlen(readDirectory->d_name);
 
                     r.return_val = return_buffer;
                     r.return_size = sizeof(return_buffer);
@@ -312,11 +323,11 @@ return_type sReadDir(const int nparams, arg_type* a){
                 }
                 directory = directory->next;
             }
-
-            dir_tail->next = dir_newTail;
         }
         current = current->next;
     }
+
+    return error_val;
 }
 
 //params: user_ip -> filepath -> mode
@@ -475,6 +486,8 @@ return_type sWrite(int nparams, arg_type* a){
 	}
 
     char *user_ip = (char *)a->arg_val;
+    if (authenticate(user_ip) == 0) {return error_val;}
+
 	int fd = (int)a->next->arg_val;
 	int bufsize = (int)a->next->next->arg_val;
 	int count = (unsigned int)a->next->next->next->arg_val;
@@ -518,6 +531,10 @@ return_type sRemove(int nparams, arg_type* a){
 
     char *user_ip = a->arg_val;
     char *filepath = a->next->arg_val;
+
+    if (authenticate(user_ip) == 0) {
+        return error_val;
+    }
 
     int fd = open(filepath, O_RDONLY);
 
