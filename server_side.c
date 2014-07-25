@@ -4,14 +4,22 @@
 #include <dirent.h>
 #include <stdlib.h>
 #include <fcntl.h>
-#include "ece454rpc_types.h"
+#include <string.h>
+#include "simplified_rpc/server_stub.c"
 
 //should have linked list for mounted and opened files
 typedef struct MountedUser {
   char *ip;
   char *alias;
+  struct FSDIR *opendirs;
   struct MountedUser *next;
 } MountedUser;
+
+typedef struct FSDIR {
+    char* clientString;
+    DIR *storedDir;
+    struct FSDIR *next;
+} FSDIR;
 
 typedef struct OpenedFile {
     int fd;
@@ -25,9 +33,7 @@ MountedUser *root = NULL;
 MountedUser *tail = NULL;
 
 return_type r;
-return_type error_val;
-error_val.return_val = (void *) -1;
-error_val.return_size = sizeof(int);
+return_type error_val = {(void *) -1, sizeof(int)};
 
 int authenticate(char *user_ip) {
 	MountedUser *curr = root;
@@ -43,17 +49,16 @@ int authenticate(char *user_ip) {
 }
 
 int authorize_file(int user_fd) {
-	UsedFile *curr = uf_head;
+	OpenedFile *curr = op_head;
 
 	while (curr != NULL) {
 		if (curr->fd == user_fd) {
-			if (curr->locked == true) { return 0; }
 			return 1;
 		}
 		curr = curr->next;
 	}
 
-	return -1;
+	return 0;
 }
 
 //nparams: user_ip
@@ -107,9 +112,9 @@ return_type sUnmount(const int nparams, arg_type* a)
 
 	while (curr != NULL) {
         if (curr->ip == user_ip) {
-            if(curr == head){
+            if(curr == root){
                 free(curr);
-                head == NULL;
+                root == NULL;
             }else{
                 prev->next = curr->next;
                 free(curr);
@@ -152,7 +157,7 @@ return_type sOpenDir(int nparams, arg_type* a) {
         return r;
     }
 
-    char buf[1500];
+    void *buf = malloc(1500);
     void *ptr = buf;
     ptr += sizeof(int);
     int length;
@@ -161,19 +166,20 @@ return_type sOpenDir(int nparams, arg_type* a) {
     if (d){
         while ((dir = readdir(d)) != NULL){
             length = strlen(dir->d_name);
-            memcpy(ptr, length, sizeof(int));
+            memcpy(ptr, &length, sizeof(int));
             ptr += sizeof(int);
             memcpy(ptr, dir->d_name, length);
             ptr += length;
 
             int concat_len = strlen(dir->d_name) + strlen(filepath);
             char concat_buf[concat_len];
-            concat_buf = strcat(filepath, dir->d_name);
+            strcat(concat_buf, filepath);
+            strcat(concat_buf, dir->d_name);
             err = stat(concat_buf, &buffer);
             if(err == -1){
-                memcpy(ptr, -1, sizeof(int));
+                memcpy(ptr, (void *)-1, sizeof(int));
             }else if(S_ISDIR(buffer.st_mode)){
-                memcpy(ptr, 1, sizeof(int));
+                memcpy(ptr, (void *)1, sizeof(int));
             }else{
                 memcpy(ptr, 0, sizeof(int));
             }
@@ -181,8 +187,29 @@ return_type sOpenDir(int nparams, arg_type* a) {
 
             count += 1;
         }
+        memcpy(buf, &count, sizeof(int));
 
-        memcpy(buf, count, sizeof(int));
+        //Confirm later
+        MountedUser *current = root;
+        while(current->ip != NULL){
+            if(current->ip == user_ip){
+                FSDIR *directory = current->opendirs;
+                FSDIR *dir_tail = NULL;
+                while(directory->storedDir != NULL){
+                    dir_tail = directory;
+                    if(directory->storedDir == d){
+                        return error_val;
+                    }
+                    directory = directory->next;
+                }
+                FSDIR *dir_newTail = (FSDIR *)malloc(sizeof(FSDIR));
+                dir_newTail->clientString = filepath;
+                dir_newTail->storedDir = d;
+
+                dir_tail->next = dir_newTail;
+            }
+            current = current->next;
+        }
         closedir(d);
     }
 
@@ -201,14 +228,95 @@ return_type sCloseDir(int nparams, arg_type* a){
 
     char *filepath = a->arg_val;
 
-    int err = closedir(filepath);
-    if(err == -1){
-        return error_val;
+    MountedUser current = root;
+    while(current != NULL){
+        if(current->ip == user_ip){
+            FSDIR *directory = current->opendirs;
+            FSDIR *dir_prev = NULL;
+            while(directory->clientString != NULL){
+                if(directory->clientString == filepath){
+                    if(directory == root){
+                        FSDIR *old_root = root;
+                        root = root->next;
+
+                        free(old_root);
+                    }else{
+                        dir_prev->next = directory->next
+                        free(directory);
+                    }
+
+                    //try closing the dir
+                    int err = closedir(filepath);
+                    if(err == -1){
+                        return error_val;
+                    }
+
+                    r.return_val = (void *)0;
+                    r.return_size = sizeof(int);
+                    return r;
+                }
+                directory = directory->next;
+            }
+        }
+        current = current->next;
+    }
+    return error_val;
+}
+
+return_type sReadDir(const int nparams, arg_type* a){
+    if(nparams != 2){
+        r.return_val = NULL;
+        r.return_size = 0;
+        return r;
     }
 
-    r.return_val = (void *)0;
-    r.return_size = sizeof(int);
-    return r;
+    char *user_ip = (char *)a->arg_val;
+	if (authenticate(user_ip) == 0) {return error_val;}
+
+	char *filepath = (char *)a->next->arg_val;
+
+    MountedUser current = root;
+    while(current != NULL){
+        if(current->ip == user_ip){
+            FSDIR *directory = current->opendirs;
+            while(directory != NULL){
+                if(directory->clientString == filepath){
+                    DIR *readDirectory = readdir(directory->storedDir);
+
+                    void *return_buffer = malloc(256);
+                    void *return_ptr = return_buffer;
+                    struct stat buffer;
+                    err = stat(filepath, &buffer);
+
+                    memcpy(return_ptr, sizeof(int), sizeof(int));
+                    return_ptr += sizeof(int);
+                    if(S_ISREG(buffer->st_mode)){
+                        memcpy(return_ptr, 0, sizeof(int));
+                        return_ptr += sizeof(int);
+                    }else if(S_ISDIR(buffer->st_mode)){
+                        memcpy(return_ptr, 1, sizeof(int));
+                        return_ptr += sizeof(int);
+                    }else{
+                        memcpy(return_ptr, -1, sizeof(int));
+                        return_ptr += sizeof(int);
+                    }
+
+                    memcpy(return_ptr, strlen(readDirectory->dd_name), sizeof(int));
+                    return_ptr += sizeof(int);
+                    memcpy(return_ptr, readDirectory->dd_name, strlen(readDirectory->dd_name));
+                    return_ptr += strlen(readDirectory->dd_name);
+
+                    r.return_val = return_buffer;
+                    r.return_size = sizeof(return_buffer);
+                    return r;
+                }
+                directory = directory->next;
+            }
+
+            dir_tail->next = dir_newTail;
+        }
+        current = current->next;
+    }
 }
 
 //params: user_ip -> filepath -> mode
@@ -255,7 +363,7 @@ return_type sOpen(const int nparams, arg_type* a){
         op_head->ip = user_ip;
         op_tail = op_head;
 	}else{
-        OpenedFile op_newFile = (OpenedFile *)sizeof(OpenedFile);
+        OpenedFile *op_newFile = (OpenedFile *)malloc(sizeof(OpenedFile));
         op_newFile->fd = fd;
         op_newFile->ip = user_ip;
         op_tail->next = op_newFile;
@@ -288,11 +396,11 @@ return_type sClose(int nparams, arg_type* a) {
         if(op_current->fd == fd) {
             if (op_current->ip == user_ip){
                 if(op_current == op_head){
-                    OpenedFile op_newHead = op_head->next;
+                    OpenedFile *op_newHead = op_head->next;
                     free(op_head);
                     op_head = op_newHead;
                 }else{
-                    OpenedFile op_newCurrent = op_current->next;
+                    OpenedFile *op_newCurrent = op_current->next;
                     free(op_current);
                     op_prev->next = op_newCurrent;
                 }
@@ -340,7 +448,7 @@ return_type sRead(int nparams, arg_type* a) {
         if (op_current->fd == fd) {
             if (op_current->ip == user_ip) {
                 bytesRead = read(fd, buff, count);
-                memcpy(ptr, &bytesRead, sizeof(int))
+                memcpy(ptr, &bytesRead, sizeof(int));
                 ptr += sizeof(int);
                 memcpy(ptr, buff, sizeof(bufsize));
 
@@ -382,7 +490,7 @@ return_type sWrite(int nparams, arg_type* a){
 
     OpenedFile *op_current = op_head;
     while(op_current != NULL){
-        if(op_current->fd == fd)
+        if(op_current->fd == fd){
             if (op_current->ip == user_ip){
                 bytesWritten = write(fd, buff, count);
                 memcpy(ptr, &bytesWritten, sizeof(int));
@@ -425,7 +533,7 @@ return_type sRemove(int nparams, arg_type* a){
 
     if (stat == 0) {
         r.return_val = 0;
-        r.return_type = sizeof(int);
+        r.return_size = sizeof(int);
         return r;
     }
 
