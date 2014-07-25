@@ -11,7 +11,6 @@
 #include "ece454_fs.h"
 #include "ece454rpc_types.h"
 #include <string.h>
-// #include "server_side.c"
 #include <errno.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -21,25 +20,12 @@
 #include <net/if.h>
 #include <ifaddrs.h>
 
-typedef struct OpenFile {
-    int fd;
-    char *filepath;
-    struct OpenFile *next;
-} OpenFile;
-
 OpenFile *of_head = NULL;
 OpenFile *of_tail = NULL;
 
-typedef struct mount {
-    char *ipOrDomName;
-    unsigned int port;
-    char *folderName;
-    struct mount *next;
-    struct FSDIR *opendirs;
-} mount;
-
 mount *m_head = NULL;
 mount *m_tail = NULL;
+
 
 // Function used to return the ip address string of a given interface
 // Sampled code from: http://stackoverflow.com/questions/2146191/
@@ -101,7 +87,7 @@ char* obtaininterfaceip(char *interface_name) {
     return ip;
 }
 
-char *findRootName(char *fullpath) {
+char *findRootName(const char *fullpath) {
     char find = '/';
 
     const char *ptr = strchr(fullpath, find);
@@ -118,7 +104,7 @@ char *findRootName(char *fullpath) {
     return localFolderName;
 }
 
-mount *findMount(char *localFolderName) {
+mount *findMount(const char *localFolderName) {
     mount *curr = m_head;
     int found = 0;
     while(curr != NULL) {
@@ -134,33 +120,31 @@ mount *findMount(char *localFolderName) {
         return NULL;
     }
 
-    return *curr;
+    return curr;
 }
 
-int addMount(char *ip, int port, char *localFolderName) {
+int addMount(const char *ip, const int port, const char *localFolderName) {
     if(m_head == NULL){
         // Initialize the mount type
         m_head = (mount *)malloc(sizeof(mount));
         m_head->ipOrDomName = ip;
-        m_head->port = srvPort;
-        m_head->folderName = localFolderName;
+        m_head->port = port;
+        m_head->foldername = localFolderName;
         
         // Initialize a first dummy FSDIR
         m_head->opendirs = malloc(sizeof(FSDIR));
-        m_head->opendirs->currentFile = 0;
         m_head->opendirs->path = "dummy";
         m_head->opendirs->next = NULL;
 
         m_tail = m_head;
     }
     else{
-        mount m_newMount = (mount *)malloc(sizeof(mount));
+        mount *m_newMount = (mount *)malloc(sizeof(mount));
         m_newMount->ipOrDomName = ip;
-        m_newMount->port = srvPort;
-        m_newMount->folderName = localFolderName;
+        m_newMount->port = port;
+        m_newMount->foldername = localFolderName;
 
         m_newMount->opendirs = malloc(sizeof(FSDIR));
-        m_newMount->opendirs->currentFile = 0;
         m_newMount->opendirs->path = "dummy";
         m_newMount->opendirs->next = NULL;
 
@@ -171,7 +155,7 @@ int addMount(char *ip, int port, char *localFolderName) {
     return 0;
 }
 
-int removeMount(char *localFolderName) {
+int removeMount(const char *localFolderName) {
     mount *curr = m_head;
     mount *prev = m_head;
 
@@ -209,7 +193,7 @@ int addFSDIR(mount *mounted, FSDIR *newfsdir) {
     return 0;
 }
 
-int removeFSDIR(mount *mounted, folderName) {
+int removeFSDIR(mount *mounted, const char *folderName) {
     FSDIR *prev = mounted->opendirs;
     FSDIR *curr = prev->next;
 
@@ -224,7 +208,7 @@ int removeFSDIR(mount *mounted, folderName) {
     return -1;
 }
 
-FSDIR *findFSDIR(mount *mounted, folderName) {
+FSDIR *findFSDIR(mount *mounted, const char *folderName) {
     FSDIR *curr = mounted->opendirs;
 
     while (curr != NULL) {
@@ -289,7 +273,7 @@ OpenFile *findOpenFile(int fd) {
 }
 
 int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *localFolderName) {
-    char *interfaceip = obtaininterfaceip("wlan0")    
+    char *interfaceip = obtaininterfaceip("wlan0");   
 
     return_type ans = make_remote_call(srvIpOrDomName, 
         srvPort, "sMount", 2, strlen(localFolderName), (void *)localFolderName, strlen(interfaceip), (void *) interfaceip);
@@ -306,14 +290,14 @@ int fsUnmount(const char *localFolderName) {
     // remove the list of active clients on the server
     // Remove the hash table relation
 
-    mount found = findMount(localFolderName);
+    mount *found = findMount(localFolderName);
     if (found == NULL) {
         return -1;
     }
 
     char *interfaceip = obtaininterfaceip("wlan0");
 
-    return_type ans = make_remote_call(curr->ipOrDomName, curr->port, "sUnmount", 1, strlen(interfaceip),
+    return_type ans = make_remote_call(found->ipOrDomName, found->port, "sUnmount", 1, strlen(interfaceip),
         (void *)interfaceip);
 
     if(*(int *)ans.return_val == 0){
@@ -325,70 +309,34 @@ int fsUnmount(const char *localFolderName) {
 
 //Given folderPath
 FSDIR* fsOpenDir(const char *folderName) {
+    char *interfaceip = obtaininterfaceip("wlan0");   
     char *rootname = findRootName(folderName);
     mount *mounted = findMount(rootname);
     free(rootname);
 
-    if (mounted == NULL) {
-        return NULL;
+    return_type ans = make_remote_call(mounted->ipOrDomName, 
+        mounted->port, "sOpenDir", 2, strlen(interfaceip), (void *)interfaceip, strlen(folderName), (void *) folderName);
+
+    if (*(int *)ans == 0) {
+        FSDIR *fsdir = malloc(sizeof(FSDIR));
+        fsdir->path = folderName;
+        fsdir->next = NULL;
+        return addFSDIR(mounted, fsdir);
     }
-
-    return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sOpenDir", 1, strlen(folderName), folderName)
-
-    char buf[1500];
-    char *ptr;
-    int file_count;
-
-    FSDIR *fsdir = malloc(sizeof(FSDIR));
-    fsdir->path = folderName;
-
-    if(ans.return_val != NULL){
-        ptr = buf;
-        buf = ans.return_val
-
-        memcpy(&file_count, ptr, sizeof(int));
-        ptr += sizeof(int);
-
-        int param_length;
-        char *filename;
-        int filetype;
-        char entype[0];
-
-        int count = 0;
-        for (int i = 0; i < file_count; i++) {
-            // Unmarshall the data [length, filename, file_type]
-            memcpy(&param_length, ptr, sizeof(int));
-            ptr += sizeof(int);
-            memcpy(filename, ptr, param_length);
-            ptr += param_length;
-            memcpy(&filetype, ptr, sizeof(int));
-            sprintf(entype, "%d", filetype)
-
-            fsDirent *file = malloc(sizeof(fsDirent));
-            strcpy(file->entName, filename);
-            file->entType = entype;
-
-            fsdir->files[count] = filename;
-            fsdir->next = NULL;
-            count += 1;
-        }
-
-        addFSDIR(mounted, fsdir);
-
-        return fsdir;
-    }else{
-        return NULL;
+    else {
+        return -1;
     }
 }
 
 int fsCloseDir(FSDIR *folder) {
-    char *rootname = findRootName(folder);
+    char *interfaceip = obtaininterfaceip("wlan0");   
+    char *rootname = findRootName(folder->path);
     mount *mounted = findMount(rootname);
     free(rootname);
 
-    return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sCloseDir", 1, strlen(folder->path), folder->path);
+    return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sCloseDir", 2, strlen(interfaceip), (void *)intefaceip, strlen(folder->path), (void *)folder->path);
 
-    if(*(int *)r.return_val == 0){
+    if(*(int *)ans.return_val == 0){
         return removeFSDIR(mounted, folder->path);
     }else{
         return -1;
@@ -396,9 +344,23 @@ int fsCloseDir(FSDIR *folder) {
 }
 
 struct fsDirent *fsReadDir(FSDIR *folder) {
-    fsDirent *fsdir = folder->files[folder->currentFile];
-    folder->currentFile += 1;
-    return fsdir;
+    char *interfaceip = obtaininterfaceip("wlan0");   
+    char *rootname = findRootName(folder->path);
+    mount *mounted = findMount(rootname);
+
+    return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sReadDir", 2, strlen(interfaceip), (void *)intefaceip, strlen(folder->path), (void *)folder->path);
+
+    if (ans != NULL) {
+        void *ptr = ans;
+        int fileType;
+        struct fsDirent *fsdirent = malloc(sizeof(struct fsDirent));
+        memcpy(&ans, ptr, sizeof(int));
+        ptr += sizeof(int);
+        memcpy(fsdirent->entName, ptr, sizeof(sizeof(char)*256));
+        return fsdirent;
+    }
+
+    return NULL:
 }
 
 

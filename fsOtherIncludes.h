@@ -10,6 +10,24 @@
 #include <sys/types.h>
 #include <dirent.h>
 
-typedef DIR FSDIR;
+typedef struct FSDIR {
+	char *path;
+	struct FSDIR *next;
+} FSDIR;
+
+typedef struct OpenFile {
+    int fd;
+    char *filepath;
+    struct OpenFile *next;
+} OpenFile;
+
+typedef struct mount {
+    char *ipOrDomName;
+    unsigned int port;
+    char *foldername;
+    struct mount *next;
+    struct FSDIR *opendirs;
+} mount;
+
 
 #endif
