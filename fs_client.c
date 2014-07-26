@@ -46,14 +46,14 @@ int main(int argc, char *argv[]) {
     printf("%s\n", dirname);
 
     printf("fsMount(): %d\n", fsMount("10.21.137.133", 10000, dirname));
-    // FSDIR *fd = fsOpenDir(dirname);
+    FSDIR *fd = fsOpenDir(dirname);
 
-    // printf("hellooooooooooooooooooooo\n");
+    printf("hellooooooooooooooooooooo\n");
 
 
- //    if(fd == NULL) {
-	// perror("fsOpenDir"); exit(1);
- //    }
+    if(fd == NULL) {
+    	perror("fsOpenDir"); exit(1);
+    }
 
  //    struct fsDirent *fdent = NULL;
  //    for(fdent = fsReadDir(fd); fdent != NULL; fdent = fsReadDir(fd)) {

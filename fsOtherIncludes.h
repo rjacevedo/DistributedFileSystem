@@ -11,7 +11,7 @@
 #include <dirent.h>
 
 typedef struct FSDIR {
-	char *path;
+	const char *path;
 	struct FSDIR *next;
 } FSDIR;
 
