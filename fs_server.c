@@ -10,21 +10,21 @@
 
 //should have linked list for mounted and opened files
 typedef struct MountedUser {
-  char *ip;
-  char *alias;
+  char ip [256];
+  char alias[256];
   struct FSDIR *opendirs;
   struct MountedUser *next;
 } MountedUser;
 
 typedef struct FSDIR {
-    char* clientString;
+    char clientString[256];
     DIR *storedDir;
     struct FSDIR *next;
 } FSDIR;
 
 typedef struct OpenedFile {
     int fd;
-    char *ip;
+    char ip[256];
     struct OpenedFile *next;
 } OpenedFile;
 
@@ -37,16 +37,19 @@ return_type r;
 return_type error_val = {(void *) -1, sizeof(int)};
 
 int authenticate(char *user_ip) {
-	MountedUser *curr = root;
+	   
+    printf("authencating");
+    MountedUser *curr = root;
 
-	while (curr != NULL) {
-		if (curr->ip == user_ip) {
-			return 1;
-		}
-		curr = curr->next;
-	}
+    while (curr != NULL) {
+        if (strcmp(curr->ip, user_ip) == 0) {
+            return 1;
+        }
+        curr = curr->next;
+    }
 
-	return 0;
+    printf("done authenticating");
+    return 0;
 }
 
 int authorize_file(int user_fd) {
@@ -74,22 +77,23 @@ return_type sMount(const int nparams, arg_type* a)
 		return r;
 	}
 
-	char *user_ip = (char *)a->arg_val;
+    char *user_ip = (char *)a->arg_val;
     char *alias  = (char *)a->next->arg_val;
 
     if(root == NULL){
         printf("root is null\n");
         root = (MountedUser *)malloc(sizeof(MountedUser));
         printf("malloc\n");
-        root->ip = user_ip;
-        root->alias = alias;
+        strcpy(root->ip, user_ip);
+        printf("THIS IS WHAT We LOOKING FOR: %s @ %p\n", root->ip, root->ip);
+        strcpy(root->alias, alias);
         printf("assignments\n");
         tail = root;
     }else{
         printf("root is not null\n");
         MountedUser *new_MountedUser = (MountedUser *)malloc(sizeof(MountedUser));
-        new_MountedUser->ip = user_ip;
-        new_MountedUser->alias = alias;
+        strcpy(new_MountedUser->ip, user_ip);
+        strcpy(new_MountedUser->alias, alias);
         new_MountedUser->next = NULL;
         tail->next = new_MountedUser;
         tail = new_MountedUser;
@@ -155,8 +159,20 @@ return_type sOpenDir(int nparams, arg_type* a) {
     printf("=======\n");
     printf("point 1\n");
     printf("=======\n");
-    char *user_ip = (char *)a->arg_val;
+
+    // printf("user_ip");
+    char *user_ip = (char *)(a->arg_val);
+    // printf("=======\n");
+    // printf("point 2\n");
+    // printf("=======\n");
+
+    printf("%s\n", user_ip);
+
+    printf("authenticate: %d\n", authenticate(user_ip));
+
     if (authenticate(user_ip) == 0) {return error_val;}
+
+    printf("after authenticating\n");
 
     char *filepath = (char *)a->next->arg_val;
 
@@ -166,8 +182,7 @@ return_type sOpenDir(int nparams, arg_type* a) {
     int err;
 
     printf("=======");
-    printf("point 2\n");
-    printf("=======");
+    printf("point 3\n");
 
     err = stat(filepath, &buffer);
     if (err == -1) {
@@ -204,7 +219,7 @@ return_type sOpenDir(int nparams, arg_type* a) {
             ptr += length;
 
             int concat_len = strlen(dir->d_name) + strlen(filepath);
-            char concat_buf[concat_len];
+            char *concat_buf = malloc(concat_len*sizeof(char));
             strcat(concat_buf, filepath);
             strcat(concat_buf, dir->d_name);
             err = stat(concat_buf, &buffer);
@@ -228,7 +243,7 @@ return_type sOpenDir(int nparams, arg_type* a) {
         //Confirm later
         MountedUser *current = root;
         while(current->ip != NULL){
-            if(current->ip == user_ip){
+            if(strcmp(current->ip, user_ip) == 0){
                 FSDIR *directory = current->opendirs;
                 FSDIR *dir_tail = NULL;
                 while(directory->storedDir != NULL){
@@ -239,7 +254,7 @@ return_type sOpenDir(int nparams, arg_type* a) {
                     directory = directory->next;
                 }
                 FSDIR *dir_newTail = (FSDIR *)malloc(sizeof(FSDIR));
-                dir_newTail->clientString = filepath;
+                strcpy(dir_newTail->clientString, filepath);
                 dir_newTail->storedDir = d;
 
                 dir_tail->next = dir_newTail;
@@ -405,12 +420,12 @@ return_type sOpen(const int nparams, arg_type* a){
 	if(op_head == NULL){
         op_head = (OpenedFile *)malloc(sizeof(OpenedFile));
         op_head->fd = fd;
-        op_head->ip = user_ip;
+        strcpy(op_head->ip, user_ip);
         op_tail = op_head;
 	}else{
         OpenedFile *op_newFile = (OpenedFile *)malloc(sizeof(OpenedFile));
         op_newFile->fd = fd;
-        op_newFile->ip = user_ip;
+        strcpy(op_newFile->ip, user_ip);
         op_tail->next = op_newFile;
         op_tail = op_tail->next;
 	}

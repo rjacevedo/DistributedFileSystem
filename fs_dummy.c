@@ -127,24 +127,24 @@ int addMount(const char *ip, const int port, const char *localFolderName) {
     if(m_head == NULL){
         // Initialize the mount type
         m_head = (mount *)malloc(sizeof(mount));
-        m_head->ipOrDomName = ip;
+        strcpy(m_head->ipOrDomName, ip);
         m_head->port = port;
-        m_head->foldername = localFolderName;
+        strcpy(m_head->foldername, localFolderName);
         // Initialize a first dummy FSDIR
         m_head->opendirs = malloc(sizeof(FSDIR));
-        m_head->opendirs->path = "dummy";
+        strcpy(m_head->opendirs->path, "dummy");
         m_head->opendirs->next = NULL;
 
         m_tail = m_head;
     }
     else{
         mount *m_newMount = (mount *)malloc(sizeof(mount));
-        m_newMount->ipOrDomName = ip;
+        strcpy(m_newMount->ipOrDomName, ip);
         m_newMount->port = port;
-        m_newMount->foldername = localFolderName;
+        strcpy(m_newMount->foldername, localFolderName);
 
         m_newMount->opendirs = malloc(sizeof(FSDIR));
-        m_newMount->opendirs->path = "dummy";
+        strcpy(m_newMount->opendirs->path, "dummy");
         m_newMount->opendirs->next = NULL;
 
         m_tail->next = m_newMount;
@@ -223,7 +223,7 @@ int addOpenFile(int fd, char *path) {
     OpenFile *curr = of_tail;
     OpenFile *newfile = malloc(sizeof(OpenFile));
     newfile->fd = fd;
-    newfile->filepath = path;
+    strcpy(newfile->filepath, path);
     newfile->next = NULL;
 
     if (of_tail == NULL) {
@@ -289,10 +289,10 @@ int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *
     printf("interfaceip: %s\n", interfaceip);
 
     return_type ans = make_remote_call(srvIpOrDomName,
-        srvPort, "sMount", 2, strlen(localFolderName), (void *)localFolderName, strlen(interfaceip), (void *) interfaceip);
+        srvPort, "sMount", 2, strlen(interfaceip)+1, (void *) interfaceip, strlen(localFolderName)+1, (void *)localFolderName);
 
     printf("finished making rpc\n");
-    
+
     if(*(int *)ans.return_val == 0){
         return addMount(srvIpOrDomName, srvPort, localFolderName);
     }else{
@@ -312,7 +312,7 @@ int fsUnmount(const char *localFolderName) {
 
     char *interfaceip = obtaininterfaceip("wlan0");
 
-    return_type ans = make_remote_call(found->ipOrDomName, found->port, "sUnmount", 1, strlen(interfaceip),
+    return_type ans = make_remote_call(found->ipOrDomName, found->port, "sUnmount", 1, strlen(interfaceip)+1,
         (void *)interfaceip);
 
     if(*(int *)ans.return_val == 0){
@@ -325,17 +325,19 @@ int fsUnmount(const char *localFolderName) {
 //Given folderPath
 FSDIR* fsOpenDir(const char *folderName) {
     printf("before open dir\n");
-    char *interfaceip = obtaininterfaceip("wlan0");   
+    char *interfaceip = obtaininterfaceip("wlan0");
+    printf("client_ip:%s\n", interfaceip);
+  
     char *rootname = findRootName(folderName);
     mount *mounted = findMount(rootname);
 
     return_type ans = make_remote_call(mounted->ipOrDomName, 
-        mounted->port, "sOpenDir", 2, strlen(interfaceip), (void *)interfaceip, strlen(folderName), (void *) folderName);
+        mounted->port, "sOpenDir", 2, strlen(interfaceip)+ 1, (void *)interfaceip, strlen(folderName)+ 1, (void *) folderName);
 
     printf("after open dir\n");
     if (*(int *)ans.return_val == 0) {
-        FSDIR *fsdir = malloc(sizeof(FSDIR));
-        fsdir->path = folderName;
+        FSDIR *fsdir = (FSDIR *)malloc(sizeof(FSDIR));
+        strcpy(fsdir->path, folderName);
         fsdir->next = NULL;
         addFSDIR(mounted, fsdir);
         return fsdir;
@@ -351,7 +353,7 @@ int fsCloseDir(FSDIR *folder) {
     mount *mounted = findMount(rootname);
     free(rootname);
 
-    return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sCloseDir", 2, strlen(interfaceip), (void *)interfaceip, strlen(folder->path), (void *)folder->path);
+    return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sCloseDir", 2, strlen(interfaceip)+1, (void *)interfaceip, strlen(folder->path), (void *)folder->path);
 
     if(*(int *)ans.return_val == 0){
         return removeFSDIR(mounted, folder->path);
@@ -365,7 +367,7 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
     char *rootname = findRootName(folder->path);
     mount *mounted = findMount(rootname);
 
-    return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sReadDir", 2, strlen(interfaceip), (void *)interfaceip, strlen(folder->path), (void *)folder->path);
+    return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sReadDir", 2, strlen(interfaceip)+1, (void *)interfaceip, strlen(folder->path), (void *)folder->path);
 
     if (ans.return_val != NULL) {
         void *ptr = ans.return_val;
@@ -393,8 +395,8 @@ int fsOpen(const char *fname, int mode) {
         return -1;
     }
 
-    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sOpen", 3, strlen(interfaceip), interfaceip,
-        strlen(fname), fname, sizeof(int), &mode);
+    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sOpen", 3, strlen(interfaceip)+1, interfaceip,
+        strlen(fname)+1, fname, sizeof(int), &mode);
 
     if(*(int *)ans.return_val > 0){
         int fd = *(int *)ans.return_val;
@@ -412,7 +414,7 @@ int fsClose(int fd) {
     mount *current_mount = findMount(rootname);
     free(rootname);
 
-    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sClose", 2, strlen(interfaceip), interfaceip,
+    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sClose", 2, strlen(interfaceip)+1, interfaceip,
         sizeof(int), fd);
 
     if(*(int *)ans.return_val == 0){
@@ -428,7 +430,7 @@ int fsRead(int fd, void *buf, const unsigned int count) {
     char *rootname = findRootName(of->filepath);
     mount *current_mount = findMount(rootname);
 
-    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRead", 4, strlen(interfaceip), interfaceip,
+    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRead", 4, strlen(interfaceip)+1, interfaceip,
         sizeof(int), fd, sizeof(int), sizeof(buf), sizeof(int), count);
 
     void *ptr = ans.return_val;
@@ -451,7 +453,7 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
     mount *current_mount = findMount(rootname);
     free(rootname);
 
-    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sWrite", 4, strlen(interfaceip), (void *)interfaceip,
+    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sWrite", 4, strlen(interfaceip)+1, (void *)interfaceip,
         sizeof(int), fd, sizeof(buf), buf, sizeof(int), count);
 
     if(*(int *)ans.return_val > 0){
@@ -474,7 +476,7 @@ int fsRemove(const char *name) {
 
     FSDIR *fsdir = findFSDIR(current_mount, name);
 
-    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRemove", 2, strlen(interfaceip), (void *)interfaceip,
+    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRemove", 2, strlen(interfaceip)+1, (void *)interfaceip,
         sizeof(int), fd);
 
     if (*(int *)ans.return_val == 0) {

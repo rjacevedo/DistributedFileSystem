@@ -11,20 +11,20 @@
 #include <dirent.h>
 
 typedef struct FSDIR {
-	const char *path;
+	char path[256];
 	struct FSDIR *next;
 } FSDIR;
 
 typedef struct OpenFile {
     int fd;
-    char *filepath;
+    char filepath[256];
     struct OpenFile *next;
 } OpenFile;
 
 typedef struct mount {
-    char *ipOrDomName;
+    char ipOrDomName[256];
     unsigned int port;
-    char *foldername;
+    char foldername[256];
     struct mount *next;
     struct FSDIR *opendirs;
 } mount;
