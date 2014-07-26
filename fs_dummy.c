@@ -8,8 +8,6 @@
  * of those functions. Look up the man pages for the calls
  * such as opendir() and read() that are made here.
  */
-#include "ece454_fs.h"
-#include "ece454rpc_types.h"
 #include <string.h>
 #include <errno.h>
 #include <arpa/inet.h>
@@ -19,6 +17,8 @@
 #include <stdlib.h>
 #include <net/if.h>
 #include <ifaddrs.h>
+#include "ece454_fs.h"
+#include "ece454rpc_types.h"
 
 OpenFile *of_head = NULL;
 OpenFile *of_tail = NULL;
@@ -271,7 +271,7 @@ OpenFile *findOpenFile(int fd) {
     return NULL;
 }
 
-int findFileDesriptor(char *path) {
+int findFileDesriptor(const char *path) {
     OpenFile *curr = of_head;
 
     while (curr != NULL) {
@@ -281,15 +281,18 @@ int findFileDesriptor(char *path) {
         curr = curr->next;
     }
 
-    return NULL;
+    return -1;
 }
 
 int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *localFolderName) {
     char *interfaceip = obtaininterfaceip("wlan0");
+    printf("interfaceip: %s\n", interfaceip);
 
     return_type ans = make_remote_call(srvIpOrDomName,
         srvPort, "sMount", 2, strlen(localFolderName), (void *)localFolderName, strlen(interfaceip), (void *) interfaceip);
 
+    printf("finished making rpc\n");
+    
     if(*(int *)ans.return_val == 0){
         return addMount(srvIpOrDomName, srvPort, localFolderName);
     }else{
@@ -321,22 +324,24 @@ int fsUnmount(const char *localFolderName) {
 
 //Given folderPath
 FSDIR* fsOpenDir(const char *folderName) {
+    printf("before open dir\n");
     char *interfaceip = obtaininterfaceip("wlan0");   
     char *rootname = findRootName(folderName);
     mount *mounted = findMount(rootname);
-    free(rootname);
 
     return_type ans = make_remote_call(mounted->ipOrDomName, 
         mounted->port, "sOpenDir", 2, strlen(interfaceip), (void *)interfaceip, strlen(folderName), (void *) folderName);
 
+    printf("after open dir\n");
     if (*(int *)ans.return_val == 0) {
         FSDIR *fsdir = malloc(sizeof(FSDIR));
         fsdir->path = folderName;
         fsdir->next = NULL;
-        return addFSDIR(mounted, fsdir);
+        addFSDIR(mounted, fsdir);
+        return fsdir;
     }
     else {
-        return -1;
+        return NULL;
     }
 }
 
@@ -458,9 +463,16 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
 
 int fsRemove(const char *name) {
     char *interfaceip = obtaininterfaceip("wlan0");
-    int fd = findOpenFileName(name);
+    char *rootname = findRootName(name);
+    mount *current_mount = findMount(rootname);
+    free(rootname);
 
-    FSDIR *fsdir = findFSDIR(current_mount, name)
+    int fd = findFileDesriptor(name);
+
+    if (fd == -1)
+        return -1;
+
+    FSDIR *fsdir = findFSDIR(current_mount, name);
 
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRemove", 2, strlen(interfaceip), (void *)interfaceip,
         sizeof(int), fd);
