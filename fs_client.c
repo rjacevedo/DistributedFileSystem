@@ -45,28 +45,31 @@ int main(int argc, char *argv[]) {
 
     printf("%s\n", dirname);
 
-    printf("fsMount(): %d\n", fsMount("10.21.137.133", 10000, dirname));
+    printf("fsMount(): %d\n", fsMount(argv[2], atoi(argv[3]), dirname));
+    
     FSDIR *fd = fsOpenDir(dirname);
 
-    printf("hellooooooooooooooooooooo\n");
-
-
+    // printf("done Mounting\n");
+    // printf("fsUnmount(): %d\n", fsUnmount(dirname));
+    // printf("done UnMounting\n");
     if(fd == NULL) {
     	perror("fsOpenDir"); exit(1);
     }
 
- //    struct fsDirent *fdent = NULL;
- //    for(fdent = fsReadDir(fd); fdent != NULL; fdent = fsReadDir(fd)) {
-	// printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));
- //    }
+    // struct fsDirent *fdent = NULL;
+  //   for(fdent = fsReadDir(fd); fdent != NULL; fdent = fsReadDir(fd)) {
+  //       printf("getting back the fsdirent\n");
+		// printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));
+  //   }
 
- //    if(errno != 0) {
-	// perror("fsReadDir");
- //    }
+  //   if(errno != 0) {
+		// perror("fsReadDir");
+  //   }
 
- //    printf("fsCloseDir(): %d\n", fsCloseDir(fd));
+    printf("fsCloseDir(): %d\n", fsCloseDir(fd));
 
  //    int ff = fsOpen("/dev/urandom", 0);
+ //    printf("the fd is %d\n", ff);
  //    if(ff < 0) {
 	// perror("fsOpen"); exit(1);
  //    }

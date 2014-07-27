@@ -8,11 +8,9 @@
 #ifndef _ECE_FS_OTHER_INCLUDES_
 #define _ECE_FS_OTHER_INCLUDES_
 #include <sys/types.h>
-#include <dirent.h>
 
 typedef struct FSDIR {
-	char path[256];
-	struct FSDIR *next;
+    char path[256];
 } FSDIR;
 
 typedef struct OpenFile {
@@ -21,13 +19,12 @@ typedef struct OpenFile {
     struct OpenFile *next;
 } OpenFile;
 
-typedef struct mount {
+typedef struct ClientMount {
     char ipOrDomName[256];
     unsigned int port;
     char foldername[256];
-    struct mount *next;
-    struct FSDIR *opendirs;
-} mount;
+    struct ClientMount *next;
+} ClientMount;
 
 
 #endif
