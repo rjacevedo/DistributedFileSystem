@@ -64,14 +64,15 @@ int main(int argc, char *argv[]) {
 		perror("fsReadDir");
     }
 
-    // printf("fsCloseDir(): %d\n", fsCloseDir(fd));
+    printf("fsCloseDir(): %d\n", fsCloseDir(fd));
 
- //    int ff = fsOpen("/dev/urandom", 0);
- //    printf("the fd is %d\n", ff);
- //    if(ff < 0) {
-	// perror("fsOpen"); exit(1);
- //    }
- //    else printf("fsOpen(): %d\n", ff);
+    // int ff = fsOpen("/dev/urandom", 0);
+    int ff = fsOpen("test/urandom", 0);
+    printf("the fd is %d\n", ff);
+    if(ff < 0) {
+	   perror("fsOpen"); exit(1);
+    }
+    else printf("fsOpen(): %d\n", ff);
 
  //    char fname[15];
  //    if(fsRead(ff, (void *)fname, 10) < 0) {
