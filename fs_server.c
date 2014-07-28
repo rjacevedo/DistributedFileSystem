@@ -91,10 +91,13 @@ char *prependRootName(char *filepath){
 OpenedFolder *findOpenFolder(MountedUser *user, char *path){
     OpenedFolder *curr = user->opendirs;
     while(curr != NULL){
+        if(debug)printf("curr path: %s\n", curr->path);
+        if(debug)printf("fullpath: %s\n", path);
         if (strcmp(curr->path, path) == 0) {
             if(debug)printf("returning the openedfolder\n");
             return curr;
         }
+        if(debug)printf("moving onto the next folder\n");
         curr = curr->next;
     }
 
@@ -302,73 +305,6 @@ return_type sOpenDir(int nparams, arg_type* a) {
 
     if(debug)printf("return from sOpenDir\n");
     return createReturn(0);
-
-
-
-    // if (d){
-    //     printf("=======");
-    //     printf("point 5\n");
-    //     printf("=======");
-    //     while ((dir = readdir(d)) != NULL){
-    //         length = strlen(dir->d_name);
-    //         memcpy(ptr, &length, sizeof(int));
-    //         ptr += sizeof(int);
-    //         memcpy(ptr, dir->d_name, length);
-    //         ptr += length;
-
-    //         int concat_len = strlen(dir->d_name) + strlen(filepath);
-    //         char *concat_buf = malloc(concat_len*sizeof(char));
-    //         if(debug)printf("%s, %s\n", filepath, dir->d_name);
-    //         sprintf(concat_buf,"%s/%s", filepath, dir->d_name);
-    //         if(debug)printf("the buff is %s\n", concat_buf);
-    //         err = stat(concat_buf, &buffer);
-    //         int zero = 0;
-    //         if(err == -1){
-    //             memcpy(ptr, (void *)-1, sizeof(int));
-    //         }else if(S_ISDIR(buffer.st_mode)){
-    //             memcpy(ptr, (void *)1, sizeof(int));
-    //         }else{
-    //             memcpy(ptr, &zero, sizeof(int));
-    //         }
-    //         ptr += sizeof(int);
-
-    //         count += 1;
-    //     }
-    //     memcpy(buf, &count, sizeof(int));
-
-    //     printf("=======");
-    //     printf("point 6\n");
-    //     printf("=======");
-    //     //Confirm later
-    //     MountedUser *current = m_head;
-        // while(current->ip != NULL){
-        //     if(strcmp(current->ip, user_ip) == 0){
-        //         FSDIR *directory = current->opendirs;
-        //         FSDIR *dir_tail = NULL;
-        //         while(directory->storedDir != NULL){
-        //             dir_tail = directory;
-        //             if(directory->storedDir == d){
-        //                 return error_val;
-        //             }
-        //             directory = directory->next;
-        //         }
-        //         FSDIR *dir_newTail = (FSDIR *)malloc(sizeof(FSDIR));
-        //         strcpy(dir_newTail->clientString, filepath);
-        //         dir_newTail->storedDir = d;
-
-        //         dir_tail->next = dir_newTail;
-        //     }
-        //     current = current->next;
-        // }
-    //     closedir(d);
-    // }
-    // else{
-    //     printf("i fucked up!\n");
-    // }
-
-    // r.return_val = (void *)d;
-    // r.return_size = sizeof(buf);
-    // return r;
 }
 
 
@@ -483,7 +419,6 @@ return_type sCloseDir(int nparams, arg_type* a){
 }
 
 return_type sReadDir(const int nparams, arg_type* a){
-    if(debug)printf("readdir in server is being called\n");
     if(nparams != 3){
         r.return_val = NULL;
         r.return_size = 0;
@@ -495,38 +430,37 @@ return_type sReadDir(const int nparams, arg_type* a){
 	char *filepath = (char *)a->next->next->arg_val;
 
     char *rootname = findRootName(filepath);
-    if(debug)printf("the rootname is %s\n", rootname);
     MountedUser *mounted = findMount(user_ip, alias);
-    OpenedFolder *openfolder = findOpenFolder(mounted,filepath);
-    
-    //struct dirent *readDirectory = readdir(openfolder->storedDir);
+    OpenedFolder *openfolder = findOpenFolder(mounted, prependRootName(filepath));
 
-    // if(readDirectory == NULL){
-        if(debug)printf("reading the directory is null\n");
+    struct dirent *readDirectory = readdir(openfolder->storedDir);
+
+    if(readDirectory == NULL){
+        if(debug)printf("in sReadDir: reading the directory is NULL\n");
         r.return_val = NULL;
         r.return_size = 0;
         return r;
-    // }   
-    // if(debug)printf("reading the directory is NOT null\n");
-    // struct fsDirent *fsdir = (struct fsDirent*)malloc(sizeof(struct fsDirent));
+    }   
 
-    // if(readDirectory->d_type == DT_DIR){
-    //     if(debug)printf("the type of the fie is folder\n");
-    //      fsdir->entType = 1;
-    // }else if(readDirectory->d_type == DT_REG){
-    //     if(debug)printf("type of bug is file\n");
-    //     fsdir->entType = 0;
-    // }else{
-    //     if(debug)printf("type of file is unknown\n");
-    //     fsdir->entType = -1;
-    // }
+    struct fsDirent *fsdir = (struct fsDirent*)malloc(sizeof(struct fsDirent));
 
-    // strcpy(fsdir->entName, readDirectory->d_name);
+    if(readDirectory->d_type == DT_DIR){
+        if(debug)printf("type: folder\n");
+         fsdir->entType = 1;
+    }else if(readDirectory->d_type == DT_REG){
+        if(debug)printf("type: file\n");
+        fsdir->entType = 0;
+    }else{
+        if(debug)printf("type: unknown\n");
+        fsdir->entType = -1;
+    }
 
-    // r.return_val = fsdir;
-    // r.return_size = sizeof(fsdir);
-    // if(debug)printf("this is probably returning the correct thing\n");
-    // return r;
+    strcpy(fsdir->entName, readDirectory->d_name);
+    if(debug)printf("fsdir->entName = %s\n", fsdir->entName);
+    if(debug)printf("fsdir->entType = %d\n", fsdir->entType);
+    r.return_val = fsdir;
+    r.return_size = sizeof(struct fsDirent);
+    return r;
 }
 
 //params: user_ip -> filepath -> mode

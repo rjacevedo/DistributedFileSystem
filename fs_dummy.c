@@ -301,7 +301,6 @@ char *createFilepath(char *fullpath, char *alias) {
     }else{
         strcpy(buff, fullpath + length + 1);
     }
-    if(debug)printf("createFilepath: %s\n", buff);
     return buff;
 }
 
@@ -319,12 +318,12 @@ FSDIR* fsOpenDir(const char *folderName) {
 
 
     if (*(int *)ans.return_val == 0) {
-        if(debug)printf("got newfsdir\n");
+        if(debug)printf("in fsOpenDir: returning FSDIR\n");
         FSDIR *newfsdir = malloc(sizeof(FSDIR));
         strcpy(newfsdir->path, folderName);
         return newfsdir;
     }
-    if(debug)printf("newfsdir failed\n");
+    if(debug)printf("in fsOpenDir: returning NULL\n");
     return NULL;
 }
 
@@ -359,28 +358,24 @@ int fsCloseDir(FSDIR *folder) {
 
 struct fsDirent *fsReadDir(FSDIR *folder) {
     char *interfaceip = obtaininterfaceip("wlan0");   
-    char *rootname = findRootName(folder->path);
-    ClientMount *mounted = findMount(rootname);
+    char *alias = findRootName(folder->path);
+    char *folderpath = createFilepath(folder->path, alias);
+    ClientMount *mounted = findMount(alias);
 
     if (mounted == NULL) {
-        if(debug)printf("in fsDirent: mounted is NULL\n");
+        if(debug)printf("in fsReadDir: mounted is NULL\n");
         return NULL;
     }
 
-    char *alias = mounted->foldername;
-    if(debug)printf("ip: %s, port: %d, interfaceip: %s, alias: %s, folderpath: %s\n", mounted->ipOrDomName, mounted->port, interfaceip, alias, folder->path);
     return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sReadDir", 3, strlen(interfaceip)+1, (void *)interfaceip, strlen(alias)+1, (void *)alias,
-        strlen(folder->path)+1, (void *)folder->path);
+        strlen(folderpath)+1, (void *)folderpath);
 
-    if(debug)printf("where the fck am i\n");
     if (ans.return_val != NULL) {
-        if(debug)printf("got a return value from ans \n");
         struct fsDirent *fsdirent = malloc(sizeof(struct fsDirent));
-        memcpy(fsdirent, &ans.return_val, ans.return_size);
+        memcpy(fsdirent, ans.return_val, ans.return_size);
         return fsdirent;
     }
-    if(debug)printf("null is being called in fsReadDir\n");
-    
+    if(debug)printf("fsReadDir returned NULL\n");
     return NULL;
 }
 
