@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
 
  //    printBuf(buf, 256);
 
- //    printf("fsClose(): %d\n", fsClose(ff));
+    printf("fsClose(): %d\n", fsClose(ff));
 
  //    ff = fsOpen(fname, 1);
  //    if(ff < 0) {

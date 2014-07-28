@@ -167,8 +167,10 @@ int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *
 
     printf("finished making rpc\n");
 
-    if(*(int *)ans.return_val == 0)
+    if(*(int *)ans.return_val == 0){
+        free(ans.return_val);
         return addMount(srvIpOrDomName, srvPort, localFolderName);
+    }
     
     return -1;
 }
@@ -188,8 +190,10 @@ int fsUnmount(const char *localFolderName) {
 
     if(debug)printf("fsUnmount ans : %p\n", ans.return_val);
 
-    if(*(int *)ans.return_val == 0)
+    if(*(int *)ans.return_val == 0){
+        free(ans.return_val);
         return removeMount(localFolderName);
+    }
     
     return -1;
 }
@@ -226,9 +230,11 @@ FSDIR* fsOpenDir(const char *folderName) {
         if(debug)printf("in fsOpenDir: returning FSDIR\n");
         FSDIR *newfsdir = malloc(sizeof(FSDIR));
         strcpy(newfsdir->path, folderName);
+        free(ans.return_val);
         return newfsdir;
     }
     if(debug)printf("in fsOpenDir: returning NULL\n");
+    free(ans.return_val);
     return NULL;
 }
 
@@ -255,9 +261,12 @@ int fsCloseDir(FSDIR *folder) {
     // free(alias);
 
     if(*(int *)ans.return_val == 0){
-        return *(int *)ans.return_val;
+        int val = *(int *)ans.return_val;
+        free(ans.return_val);
+        return val;
     }
 
+    free(ans.return_val);
     return -1;
 }
 
@@ -278,9 +287,11 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
     if (ans.return_val != NULL) {
         struct fsDirent *fsdirent = malloc(sizeof(struct fsDirent));
         memcpy(fsdirent, ans.return_val, ans.return_size);
+        free(ans.return_val);
         return fsdirent;
     }
     if(debug)printf("fsReadDir returned NULL\n");
+    free(ans.return_val);
     return NULL;
 }
 
@@ -326,9 +337,12 @@ int fsOpen(const char *fname, int mode) {
         if(debug)printf("return val is %d\n", *(int *)ans.return_val);
         if(*(int *)ans.return_val > 0) {
             addOpenFile(*(int *)ans.return_val, alias);
-            return *(int *)ans.return_val;
+            int val = *(int *)ans.return_val;
+            free(ans.return_val);
+            return val;
         }else if(*(int *)ans.return_val == 0){
             if(debug)printf("cannot open file!\n");
+            free(ans.return_val);
             return -1;
         }
 
@@ -341,7 +355,18 @@ int fsOpen(const char *fname, int mode) {
 int fsClose(int fd) {
     char *interfaceip = obtaininterfaceip("wlan0");
     OpenFile *of = findOpenFile(fd);
+
+    if(of == NULL){
+        if(debug)printf("file is not open\n");
+        return -1;
+    }
+
     ClientMount *current_mount = findMount(of->alias);
+
+    if(current_mount == NULL){
+        if(debug)printf("user is not mounted\n");
+        return -1;
+    }
 
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sClose", 3, strlen(interfaceip)+1, interfaceip,
         strlen(of->alias)+1, (void *)of->alias, sizeof(int), &fd);
@@ -353,29 +378,26 @@ int fsClose(int fd) {
     return -1;
 }
 
-/*int fsRead(int fd, void *buf, const unsigned int count) {
+int fsRead(int fd, void *buf, const unsigned int count) {
     char *interfaceip = obtaininterfaceip("wlan0");
     OpenFile *of = findOpenFile(fd);
-    char *rootname = findRootName(of->filepath);
-    ClientMount *current_mount = findMount(rootname);
+    char *alias = findRootName(of->alias);
+    ClientMount *current_mount = findMount(alias);
 
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRead", 4, strlen(interfaceip)+1, interfaceip,
-        sizeof(int), fd, sizeof(int), sizeof(buf), sizeof(int), count);
+        sizeof(int), fd, sizeof(int), count, strlen(alias)+1, (void *) alias);
 
-    void *ptr = ans.return_val;
-    int bytesread;
-    memcpy(&bytesread, ptr, sizeof(int));
-    ptr += sizeof(int);
-
-    if(bytesread > 0){
-        memcpy(buf, ptr, bytesread);
-        return bytesread;
+    if(ans.return_val != NULL){
+        strcpy(buf, ans.return_val);
+        free(ans.return_val);
+        return ans.return_size;
     }else{
+        free(ans.return_val);
         return -1;
     }
 }
 
-int fsWrite(int fd, const void *buf, const unsigned int count) {
+/*int fsWrite(int fd, const void *buf, const unsigned int count) {
     char *interfaceip = obtaininterfaceip("wlan0");
     OpenFile *of = findOpenFile(fd);
     char *rootname = findRootName(of->filepath);

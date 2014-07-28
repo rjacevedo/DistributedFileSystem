@@ -542,16 +542,18 @@ return_type sClose(int nparams, arg_type* a) {
 
     // Check if user is mounted
     MountedUser *mounted = findMount(user_ip, alias);
-    if (mounted == NULL)
+    if (mounted == NULL){
         return createReturn(-1);
+    }
 
-    if (removeOpenFile(user_ip, alias, fd) != 0)
+    if (removeOpenFile(user_ip, alias, fd) != 0){
         return createReturn(-1);
+    }
 
     return createReturn(0);
 }
 
-//nparams: user_ip -> fd -> buf -> count
+//nparams: user_ip -> fd -> buf -> count -> alias
 return_type sRead(int nparams, arg_type* a) {
     if (nparams != 4) {
 		r.return_val = NULL;
@@ -561,20 +563,21 @@ return_type sRead(int nparams, arg_type* a) {
 
     char *user_ip = (char *)a->arg_val;
 	int fd = *(int *)a->next->arg_val;
-	int bufsize = *(int *)a->next->next->arg_val;
-	int count = *(int *)a->next->next->next->arg_val;
+	int count = *(int *)a->next->next->arg_val;
+    char *alias = (char *)a->next->next->next->arg_val;
 
-    if (authenticate(user_ip) == 0) {
-		return error_val;
-	}
+    MountedUser *mounted = findMount(user_ip, alias);
+    if (mounted == NULL){
+        return createReturn(-1);
+    }
 
     int bytesRead = -1;
-    char buff[bufsize];
-    void *ret_buff = malloc(bufsize + sizeof(int));
-    void *ptr = ret_buff;
+    // void *ptr = buff;
 
-    OpenedFile *op_current = op_head;
-    while(op_current != NULL){
+    //OpenedFile *op_current = op_head;
+    char *buff = malloc(count);
+    bytesRead = read(fd, buff, count);
+    /*while(op_current != NULL){
         if (op_current->fd == fd) {
             if (op_current->ip == user_ip) {
                 bytesRead = read(fd, buff, count);
@@ -592,9 +595,16 @@ return_type sRead(int nparams, arg_type* a) {
         }
 
         op_current = op_current->next;
+    }*/
+    if(bytesRead > 0){
+        r.return_val = buff;
+        r.return_size = bytesRead;
+        return r;
+    }else{
+        r.return_val = NULL;
+        r.return_size = 0;
+        return r;
     }
-
-    return error_val;
 }
 
 return_type sWrite(int nparams, arg_type* a){
