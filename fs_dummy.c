@@ -107,7 +107,6 @@ char *findRootName(const char *fullpath) {
 
 ClientMount *findMount(const char *alias) {
     ClientMount *curr = m_head;
-    
     while(curr != NULL) {
         if (strcmp(curr->foldername, alias)==0)
             return curr;
@@ -339,6 +338,7 @@ int fsOpen(const char *fname, int mode) {
             addOpenFile(*(int *)ans.return_val, alias);
             int val = *(int *)ans.return_val;
             free(ans.return_val);
+            if(debug)printf("this is a test, the return_val is %d\n", val);
             return val;
         }else if(*(int *)ans.return_val == 0){
             if(debug)printf("cannot open file!\n");
@@ -383,12 +383,12 @@ int fsRead(int fd, void *buf, const unsigned int count) {
     OpenFile *of = findOpenFile(fd);
     char *alias = findRootName(of->alias);
     ClientMount *current_mount = findMount(alias);
-
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRead", 4, strlen(interfaceip)+1, interfaceip,
-        sizeof(int), fd, sizeof(int), count, strlen(alias)+1, (void *) alias);
+        sizeof(int), &fd, sizeof(int), &count, strlen(alias)+1, (void *) alias);
 
     if(ans.return_val != NULL){
-        strcpy(buf, ans.return_val);
+        memset(buf, 0, count);
+        memcpy(buf, ans.return_val, ans.return_size);
         free(ans.return_val);
         return ans.return_size;
     }else{

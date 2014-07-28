@@ -496,10 +496,10 @@ return_type sOpen(const int nparams, arg_type* a){
     if(debug)printf("the fd is %d\n", fd);
     // Can just add struct because we know it doesn't exist from checkFileInUse
 	if (addOpenFile(user_ip, alias, fd, fullpath) != 0){
+        if(debug)printf("closing the file descriptor %d because of error\n", fd);
         close(fd);
         return createReturn(-1);
     }
-
 	return createReturn(fd);
 }
 
@@ -576,6 +576,7 @@ return_type sRead(int nparams, arg_type* a) {
 
     //OpenedFile *op_current = op_head;
     char *buff = malloc(count);
+    memset(buff, 0, count);
     bytesRead = read(fd, buff, count);
     /*while(op_current != NULL){
         if (op_current->fd == fd) {
@@ -596,6 +597,7 @@ return_type sRead(int nparams, arg_type* a) {
 
         op_current = op_current->next;
     }*/
+    if(debug)printf("sending back the buffer %s\n", buff);
     if(bytesRead > 0){
         r.return_val = buff;
         r.return_size = bytesRead;

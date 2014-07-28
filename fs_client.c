@@ -74,10 +74,11 @@ int main(int argc, char *argv[]) {
     }
     else printf("fsOpen(): %d\n", ff);
 
- //    char fname[15];
- //    if(fsRead(ff, (void *)fname, 10) < 0) {
-	// perror("fsRead"); exit(1);
- //    }
+    char fname[15];
+    if(fsRead(ff, (void *)fname, 10) < 0) {
+	    perror("fsRead"); exit(1);
+    }
+    printf("the buffer read %s\n", fname);
 
  //    int i;
  //    for(i = 0; i < 10; i++) {
