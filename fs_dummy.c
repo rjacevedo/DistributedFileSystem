@@ -234,14 +234,8 @@ FSDIR* fsOpenDir(const char *folderName) {
 
 int fsCloseDir(FSDIR *folder) {
     char *interfaceip = obtaininterfaceip("wlan0");   
-    
-    if(debug)printf("==============\n");
-    if(debug)printf("fsCloserDir folderpath: %s\n", folder->path);
 
     char *alias = findRootName(folder->path);
-
-    if(debug)printf("fsCloserDir alias: %s\n", alias);
-    if(debug)printf("==============\n");
 
     ClientMount *mounted = findMount(alias);
 
@@ -259,7 +253,6 @@ int fsCloseDir(FSDIR *folder) {
         strlen(folderpath)+1, (void *)folderpath);
 
     free(alias);
-    if(debug)printf("the return val is %p", ans.return_val);
 
     if(*(int *)ans.return_val == 0){
         return *(int *)ans.return_val;
@@ -274,22 +267,19 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
     ClientMount *mounted = findMount(rootname);
 
     if (mounted == NULL) {
+        if(debug)printf("in fsDirent: mounted is NULL\n");
         return NULL;
     }
-    
-    if(debug)printf("before fsReadDir call\n");
-    return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sReadDir", 2, strlen(interfaceip)+1, (void *)interfaceip, strlen(folder->path), (void *)folder->path);
-    if(debug)printf("after fsREadDir call\n");
 
-    if (*(int *)ans.return_val != -1) {
-        return ans.return_val;
-        if(debug)printf("got a return value from ans\n");
-        // void *ptr = ans.return_val;
-        // int fileType;
+    char *alias = mounted->foldername;
+    if(debug)printf("ip: %s, port: %d, interfaceip: %s, alias: %s, folderpath: %s\n", mounted->ipOrDomName, mounted->port, interfaceip, alias, folder->path);
+    return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sReadDir", 3, strlen(interfaceip)+1, (void *)interfaceip, strlen(alias)+1, (void *)alias,
+        strlen(folder->path)+1, (void *)folder->path);
+
+    if(debug)printf("where the fck am i\n");
+    if (ans.return_val != NULL) {
+        if(debug)printf("got a return value from ans \n");
         struct fsDirent *fsdirent = malloc(sizeof(struct fsDirent));
-        // memcpy(&ans, ptr, sizeof(int));
-        // ptr += sizeof(int);
-        // memcpy(fsdirent->entName, ptr, sizeof(sizeof(char)*256));
         memcpy(fsdirent, &ans.return_val, ans.return_size);
         return fsdirent;
     }
