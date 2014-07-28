@@ -9,15 +9,15 @@
 #define _ECE_FS_OTHER_INCLUDES_
 #include <sys/types.h>
 
+typedef struct OpenFile {
+    int fd;
+    char alias[256];
+    struct OpenFile *next;
+}OpenFile
+
 typedef struct FSDIR {
     char path[256];
 } FSDIR;
-
-typedef struct OpenFile {
-    int fd;
-    char filepath[256];
-    struct OpenFile *next;
-} OpenFile;
 
 typedef struct ClientMount {
     char ipOrDomName[256];

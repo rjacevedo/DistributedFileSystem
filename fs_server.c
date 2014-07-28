@@ -22,15 +22,15 @@ MountedUser *m_head = NULL;
 
 typedef struct OpenedFile {
     int fd;
+    char path[256];
     char ip[256];
+    char alias[256];
     struct OpenedFile *next;
 } OpenedFile;
 
 OpenedFile *op_head = NULL;
-OpenedFile *op_tail = NULL;
 
 char serverAlias[256];
-
 
 typedef struct OpenedFolder {
     char path[256];
@@ -127,6 +127,7 @@ void printMount() {
     printf("\n");
 }
 
+
 int addMount(char *ip, char *alias) {
     if(debug) printf("Adding Mount IP: %s\n", ip);
     if(debug) printf("Adding Mount alias: %s\n", alias);
@@ -156,25 +157,16 @@ int authenticate(char *user_ip) {
     return 0;
 }
 
-int authorize_file(int user_fd) {
+int checkFileInUse(char *fullpath) {
 	OpenedFile *curr = op_head;
 
 	while (curr != NULL) {
-		if (curr->fd == user_fd) {
-			return 1;
-		}
+		if (strcmp(curr->path == fullpath) == 0)
+			return 0;
 		curr = curr->next;
 	}
 
-	return 0;
-}
-
-void returnSignature(int err, void* ret_val, int ret_size) {
-    void *ret_buf = (void *)malloc(sizeof(int)+ret_size);
-    memcpy(ret_buf, &err, sizeof(int));
-    memcpy(ret_buf+sizeof(int), ret_val, ret_size);
-    r.return_size = ret_size + sizeof(int);
-    r.return_val = ret_buf;
+	return -1;
 }
 
 char *findRootName(const char *fullpath) {
@@ -206,8 +198,7 @@ return_type createReturn(int value) {
 }
 
 //nparams: user_ip
-return_type sMount(const int nparams, arg_type* a)
-{	
+return_type sMount(const int nparams, arg_type* a) {	
     if (nparams != 2) {
 		r.return_val = NULL;
 		r.return_size = 0;
@@ -232,8 +223,7 @@ return_type sMount(const int nparams, arg_type* a)
 }
 
 //nparams: user_ip
-return_type sUnmount(const int nparams, arg_type* a)
-{
+return_type sUnmount(const int nparams, arg_type* a) {
 
     if(debug)printf("recevied %d nparams in sUnmount\n", nparams);
 	if (nparams != 2) {
@@ -303,77 +293,7 @@ return_type sOpenDir(int nparams, arg_type* a) {
     OpenedFolder *new_open = findOpenFolder(mounted, new_path);
     new_open->storedDir = d;
 
-
-
-
     return createReturn(0);
-
-
-
-    // if (d){
-    //     printf("=======");
-    //     printf("point 5\n");
-    //     printf("=======");
-    //     while ((dir = readdir(d)) != NULL){
-    //         length = strlen(dir->d_name);
-    //         memcpy(ptr, &length, sizeof(int));
-    //         ptr += sizeof(int);
-    //         memcpy(ptr, dir->d_name, length);
-    //         ptr += length;
-
-    //         int concat_len = strlen(dir->d_name) + strlen(filepath);
-    //         char *concat_buf = malloc(concat_len*sizeof(char));
-    //         if(debug)printf("%s, %s\n", filepath, dir->d_name);
-    //         sprintf(concat_buf,"%s/%s", filepath, dir->d_name);
-    //         if(debug)printf("the buff is %s\n", concat_buf);
-    //         err = stat(concat_buf, &buffer);
-    //         int zero = 0;
-    //         if(err == -1){
-    //             memcpy(ptr, (void *)-1, sizeof(int));
-    //         }else if(S_ISDIR(buffer.st_mode)){
-    //             memcpy(ptr, (void *)1, sizeof(int));
-    //         }else{
-    //             memcpy(ptr, &zero, sizeof(int));
-    //         }
-    //         ptr += sizeof(int);
-
-    //         count += 1;
-    //     }
-    //     memcpy(buf, &count, sizeof(int));
-
-    //     printf("=======");
-    //     printf("point 6\n");
-    //     printf("=======");
-    //     //Confirm later
-    //     MountedUser *current = m_head;
-        // while(current->ip != NULL){
-        //     if(strcmp(current->ip, user_ip) == 0){
-        //         FSDIR *directory = current->opendirs;
-        //         FSDIR *dir_tail = NULL;
-        //         while(directory->storedDir != NULL){
-        //             dir_tail = directory;
-        //             if(directory->storedDir == d){
-        //                 return error_val;
-        //             }
-        //             directory = directory->next;
-        //         }
-        //         FSDIR *dir_newTail = (FSDIR *)malloc(sizeof(FSDIR));
-        //         strcpy(dir_newTail->clientString, filepath);
-        //         dir_newTail->storedDir = d;
-
-        //         dir_tail->next = dir_newTail;
-        //     }
-        //     current = current->next;
-        // }
-    //     closedir(d);
-    // }
-    // else{
-    //     printf("i fucked up!\n");
-    // }
-
-    // r.return_val = (void *)d;
-    // r.return_size = sizeof(buf);
-    // return r;
 }
 
 
@@ -445,46 +365,6 @@ return_type sCloseDir(int nparams, arg_type* a){
 
     return createReturn(0);
 
-
-// 	if (authenticate(user_ip) == 0) {return error_val;}
-
-//     char *filepath = a->next->arg_val;
-
-//     MountedUser *current = m_head;
-//     while(current != NULL){
-//         if(current->ip == user_ip){
-//             FSDIR *directory = current->opendirs;
-//             FSDIR *dir_prev = NULL;
-//             while(directory->path != NULL){
-//                 if(directory->path == filepath){
-//                     //try closing the dir
-//                     int err = closedir(directory->storedDir);
-//                     if(err == -1){
-//                         return error_val;
-//                     }
-
-//                     if(dir_prev == NULL){
-//                         FSDIR *old_root = directory;
-//                         current->opendirs = directory->next;
-
-//                         // free(old_root);
-//                     }else{
-//                         dir_prev->next = directory->next;
-//                         // free(directory);
-//                     }
-
-//                     int zero = 0;
-//                     r.return_val = (void *)&zero;
-//                     r.return_size = sizeof(int);
-//                     return r;
-//                 }
-//                 dir_prev = directory;
-//                 directory = directory->next;
-//             }
-//         }
-//         current = current->next;
-//     }
-//     return error_val;
 }
 
 return_type sReadDir(const int nparams, arg_type* a){
@@ -535,30 +415,63 @@ return_type sReadDir(const int nparams, arg_type* a){
 //     return r;
 }
 
+int addOpenFile(char *user_ip, char *alias, int fd, char *fullpath) {
+    OpenedFile *openfile = malloc(sizeof(OpenedFile));
+    strcpy(openfile->ip, user_ip);
+    strcpy(openfile->alias, alias);
+    openfile->fd = fd;
+    strcpy(openfile->path, fullpath);
+    openfile->next = op_head;
+
+    op_head = openfile;
+    return 0;
+}
+
+OpenedFile findOpenFile(char *user_ip, char *alias, char *fullpath) {
+    OpenedFile *curr = op_head;
+
+    while (curr != NULL) {
+        if (strcmp(curr->ip, user_ip) == 0 && strcmp(curr->alias, alias) == 0
+            && strcmp(curr->path, fullpath) == 0)
+            return curr;
+
+        curr = curr -> next;
+    }
+
+    return NULL;
+}
+
+
 //params: user_ip -> filepath -> mode
 return_type sOpen(const int nparams, arg_type* a){
-	if (nparams != 3) {
+	if (nparams != 4) {
 		r.return_val = NULL;
 		r.return_size = 0;
 		return r;
 	}
-    if(debug)printf("sopen is being called\n");
 
 	char *user_ip = (char *)a->arg_val;
-	if (authenticate(user_ip) == 0) {return error_val;}
+    char *alias = (char *)a->next->arg_val;
+    char *filepath = (char *)a->next->next->arg_val;
+    char *fullpath = prependRootName(filepath);
+	int mode = *(int *)a->next->next->next->arg_val;
 
-	char *filepath = (char *)a->next->arg_val;
-	int mode = *(int *)a->next->next->arg_val;
+    if (checkFileInUse(fullpath)) == 0)
+        return createReturn(-1);
 
-	struct stat buffer;
+    // Check if user is mounted
+    MountedUser *mounted = findMount(user_ip, alias);
+    if (mounted == NULL)
+        return createReturn(-1);
 
+    // If the file does not exist or is a folder return error
+    struct stat buffer;
 	int err = stat(filepath, &buffer);
-	if (err == -1 && mode == 0) {
-        return error_val;
-    }
-	if (S_ISDIR(buffer.st_mode)) {
-        return error_val;
-    }
+	if (err == -1 && mode == 0)
+        return createReturn(-1);
+
+	if (S_ISDIR(buffer.st_mode))
+        return createReturn(-1);
 
 	int fd;
 	if (mode == 1) {
@@ -567,76 +480,60 @@ return_type sOpen(const int nparams, arg_type* a){
 		fd = open(filepath, O_RDONLY | S_IRUSR);
 	}
 
-    OpenedFile *op_current = op_head;
-    while(op_current != NULL){
-        if(op_current->fd == fd){
-            return error_val;
+    // Can just add struct because we know it doesn't exist from checkFileInUse
+	if (addOpenFile(user_ip, alias, fd, fullpath) != 0)
+        close(fd);
+        return createReturn(-1);
+
+	return createReturn(fd);
+}
+
+int removeOpenFile(char *user_ip, char *alias, int fd) {
+    OpenedFile *curr = op_head;
+    OpenedFile *prev = op_head;
+
+    while(curr != NULL){
+        if(strcmp(curr->ip, user_ip) == 0 && strcmp(curr->alias, alias) == 0 && curr->fd == fd){
+            if(curr == op_head){
+                op_head = curr->next;
+            }else{
+                prev->next = curr->next;
+            }
+            free(curr);
+            return 0;
         }
+
+        if(curr != op_head){
+            prev = prev->next;
+        }
+
+        curr = curr->next;
     }
 
-	if(op_head == NULL){
-        op_head = (OpenedFile *)malloc(sizeof(OpenedFile));
-        op_head->fd = fd;
-        strcpy(op_head->ip, user_ip);
-        op_tail = op_head;
-	}else{
-        OpenedFile *op_newFile = (OpenedFile *)malloc(sizeof(OpenedFile));
-        op_newFile->fd = fd;
-        strcpy(op_newFile->ip, user_ip);
-        op_tail->next = op_newFile;
-        op_tail = op_tail->next;
-	}
-
-	r.return_val = (void *)&fd;
-	r.return_size = sizeof(int);
-	return r;
+    return -1;
 }
 
 //nparams: user_ip -> fd
 return_type sClose(int nparams, arg_type* a) {
-	if (nparams != 2) {
+	if (nparams != 3) {
 		r.return_val = NULL;
 		r.return_size = 0;
 		return r;
 	}
 
-	char *user_ip = (char *)a->arg_val;
-    int fd = *(int *)a->next->arg_val;
+    char *user_ip = (char *)a->arg_val;
+	char *alias = (char *)a->next->arg_val;
+    int fd = *(int *)a->next->next->arg_val;
 
-	if (authenticate(user_ip) == 0) {
-		return error_val;
-	}
+    // Check if user is mounted
+    MountedUser *mounted = findMount(user_ip, alias);
+    if (mounted == NULL)
+        return createReturn(-1);
 
-    OpenedFile *op_current = op_head;
-    OpenedFile *op_prev = op_current;
-    while(op_current != NULL){
-        if(op_current->fd == fd) {
-            if (op_current->ip == user_ip){
-                if(op_current == op_head){
-                    OpenedFile *op_newHead = op_head->next;
-                    // free(op_head);
-                    op_head = op_newHead;
-                }else{
-                    OpenedFile *op_newCurrent = op_current->next;
-                    // free(op_current);
-                    op_prev->next = op_newCurrent;
-                }
-                int status = close(fd);
-                r.return_val = (void *)&status;
-                r.return_size = sizeof(int);
-                return r;
-            }
-            else {
-                return error_val;
-            }
-        }
-        if(op_current != op_head){
-            op_prev = op_prev->next;
-        }
-        op_current = op_current->next;
-    }
+    if (removeOpenFile(user_ip, alias, fd) != 0)
+        return createReturn(-1);
 
-    return error_val;
+    return createReturn(0);
 }
 
 //nparams: user_ip -> fd -> buf -> count
@@ -770,8 +667,8 @@ int main(int argc, char *argv[]) {
     register_procedure("sOpenDir", 3, sOpenDir);
     register_procedure("sCloseDir", 3, sCloseDir);
     register_procedure("sReadDir", 2, sReadDir);
-    register_procedure("sOpen", 3, sOpen);
-    register_procedure("sClose", 2, sClose);
+    register_procedure("sOpen", 4, sOpen);
+    register_procedure("sClose", 3, sClose);
     register_procedure("sRead", 4, sRead);
     register_procedure("sWrite", 4, sWrite);
     register_procedure("sRemove", 2, sRemove);
