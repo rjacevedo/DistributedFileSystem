@@ -383,6 +383,7 @@ int fsRead(int fd, void *buf, const unsigned int count) {
     ClientMount *current_mount = findMount(alias);
 
     if(current_mount == NULL){
+        if(debug)printf("mount in fsRead is null\n");
         return -1;
     }
 
@@ -395,6 +396,7 @@ int fsRead(int fd, void *buf, const unsigned int count) {
         free(ans.return_val);
         return ans.return_size;
     }else{
+        if(debug)printf("could not read\n");
         free(ans.return_val);
         return -1;
     }
@@ -410,12 +412,12 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
         return -1;
     }
 
-    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sWrite", 4, strlen(interfaceip)+1, (void *)interfaceip,
-        sizeof(int), &fd, count, buf, sizeof(int), count, strlen(alias)+1, alias);
-
+    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sWrite", 5, strlen(interfaceip)+1, (void *)interfaceip,
+        sizeof(int), &fd, count, buf, sizeof(int), &count, strlen(alias)+1, alias);
     if(*(int *)ans.return_val > 0){
         int val = *(int *)ans.return_val;
         free(ans.return_val);
+        if(debug)printf("bytes written in fsWrite is %d\n", val);
         return val;
     }else{
         free(ans.return_val);
@@ -430,12 +432,14 @@ int fsRemove(const char *name) {
     ClientMount *current_mount = findMount(alias);
     ClientMount *mounted = findMount(alias);
     if (mounted == NULL) {
+        if(debug)printf("mounted in fsRemove is null\n");
         return -1;
     }
 
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRemove", 2, strlen(interfaceip)+1, (void *)interfaceip,
         strlen(filepath)+1, filepath);
 
+    if(debug)printf("return val in fsRemove of %d\n", *(int *)ans.return_val);
     if (*(int *)ans.return_val == 0) {
         free(ans.return_val);
         return 0;

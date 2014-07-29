@@ -80,37 +80,37 @@ int main(int argc, char *argv[]) {
     }
     printf("the buffer read %s\n", fname);
 
- //    int i;
- //    for(i = 0; i < 10; i++) {
-	// //printf("%d\n", ((unsigned char)(fname[i]))%26);
-	// fname[i] = ((unsigned char)(fname[i]))%26 + 'a';
- //    }
- //    fname[10] = (char)0;
- //    printf("Filename to write: %s\n", (char *)fname);
+    int i;
+    for(i = 0; i < 10; i++) {
+    // printf("%d\n", ((unsigned char)(fname[i]))%26);
+    fname[i] = ((unsigned char)(fname[i]))%26 + 'a';
+    }
+    fname[10] = (char)0;
+    printf("Filename to write: %s\n", (char *)fname);
 
- //    char buf[256];
- //    if(fsRead(ff, (void *)buf, 256) < 0) {
-	// perror("fsRead(2)"); exit(1);
- //    }
+    char buf[50];
+    if(fsRead(ff, (void *)buf, 50) < 0) {
+	perror("fsRead(2)"); exit(1);
+    }
 
- //    printBuf(buf, 256);
+    printBuf(buf, 50);
 
     printf("fsClose(): %d\n", fsClose(ff));
 
- //    ff = fsOpen(fname, 1);
- //    if(ff < 0) {
-	// perror("fsOpen(write)"); exit(1);
- //    }
+    ff = fsOpen("test/tuvwxyzabc", 1);
+    if(ff < 0) {
+	perror("fsOpen(write)"); exit(1);
+    }
 
- //    if(fsWrite(ff, buf, 256) < 256) {
-	// fprintf(stderr, "fsWrite() wrote fewer than 256\n");
- //    }
+    if(fsWrite(ff, buf, 50) < 50) {
+	fprintf(stderr, "fsWrite() wrote fewer than 256\n");
+    }
 
- //    if(fsClose(ff) < 0) {
-	// perror("fsClose"); exit(1);
- //    }
+    if(fsClose(ff) < 0) {
+    perror("fsClose"); exit(1);
+    }
 
- //    printf("fsRemove(%s): %d\n", fname, fsRemove(fname));
+    printf("fsRemove(%s): %d\n", fname, fsRemove("test/tuvwxyzabc"));
 
     return 0;
 }

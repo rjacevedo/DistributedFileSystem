@@ -576,6 +576,8 @@ return_type sRead(int nparams, arg_type* a) {
     char *buff = malloc(count);
     memset(buff, 0, count);
     bytesRead = read(fd, buff, count);
+    if(debug)printf("buffer contained: %s\n", buff);
+    if(debug)printf("bytesread is %d, count is %d\n", bytesRead, count);
     
     if(debug)printf("sending back the buffer %s\n", buff);
     if(bytesRead > 0){
@@ -590,6 +592,7 @@ return_type sRead(int nparams, arg_type* a) {
 }
 
 return_type sWrite(int nparams, arg_type* a){
+    if(debug)printf("got into sWrite\n");
     if (nparams != 5) {
 		r.return_val = NULL;
 		r.return_size = 0;
@@ -608,7 +611,6 @@ return_type sWrite(int nparams, arg_type* a){
     }
 	
     int bytesWritten = -1;
-
     bytesWritten = write(fd, buff, count);
 
     if(bytesWritten > 0){
@@ -625,9 +627,10 @@ return_type sRemove(int nparams, arg_type* a){
     }
 
     char *user_ip = a->arg_val;
-    char *filepath = a->next->arg_val;    
+    char *filepath = a->next->arg_val; 
+    char *fullpath = prependRootName(filepath);   
 
-    int stat = remove(filepath);
+    int stat = remove(fullpath);
 
     if (stat == 0) {
         return createReturn(0);
