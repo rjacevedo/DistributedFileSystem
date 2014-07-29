@@ -572,31 +572,11 @@ return_type sRead(int nparams, arg_type* a) {
     }
 
     int bytesRead = -1;
-    // void *ptr = buff;
 
-    //OpenedFile *op_current = op_head;
     char *buff = malloc(count);
     memset(buff, 0, count);
     bytesRead = read(fd, buff, count);
-    /*while(op_current != NULL){
-        if (op_current->fd == fd) {
-            if (op_current->ip == user_ip) {
-                bytesRead = read(fd, buff, count);
-                memcpy(ptr, &bytesRead, sizeof(int));
-                ptr += sizeof(int);
-                memcpy(ptr, buff, sizeof(bufsize));
-
-                r.return_val = ret_buff;
-                r.return_size = sizeof(ret_buff);
-                return r;
-            }
-            else {
-                return error_val;
-            }
-        }
-
-        op_current = op_current->next;
-    }*/
+    
     if(debug)printf("sending back the buffer %s\n", buff);
     if(bytesRead > 0){
         r.return_val = buff;
@@ -610,48 +590,32 @@ return_type sRead(int nparams, arg_type* a) {
 }
 
 return_type sWrite(int nparams, arg_type* a){
-    if (nparams != 4) {
+    if (nparams != 5) {
 		r.return_val = NULL;
 		r.return_size = 0;
 		return r;
 	}
 
     char *user_ip = (char *)a->arg_val;
-    if (authenticate(user_ip) == 0) {return error_val;}
-
 	int fd = *(int *)a->next->arg_val;
-	int bufsize = *(int *)a->next->next->arg_val;
+	void *buff = a->next->next->arg_val;
 	int count = *(unsigned int *)a->next->next->next->arg_val;
-	int bytesWritten = -1;
+    char *alias = a->next->next->next->next->arg_val;
 
-    char buff[bufsize];
-    void *combined = malloc(bufsize + sizeof(int));
-    void *ptr = combined;
-
-    if (authenticate(user_ip) == 0) {
-		return error_val;
-	}
-
-    OpenedFile *op_current = op_head;
-    while(op_current != NULL){
-        if(op_current->fd == fd){
-            if (op_current->ip == user_ip){
-                bytesWritten = write(fd, buff, count);
-                memcpy(ptr, &bytesWritten, sizeof(int));
-                ptr += sizeof(int);
-                memcpy(ptr, &buff, bytesWritten);
-                r.return_val = (void *)combined;
-                r.return_size = sizeof(combined);
-                return r;
-            }
-            else {
-                return error_val;
-            }
-        }
-        op_current = op_current->next;
+    MountedUser *mounted = findMount(user_ip, alias);
+    if (mounted == NULL){
+        return createReturn(-1);
     }
+	
+    int bytesWritten = -1;
 
-    return error_val;
+    bytesWritten = write(fd, buff, count);
+
+    if(bytesWritten > 0){
+        return createReturn(bytesWritten);
+    }else{
+        return createReturn(-1);
+    }
 }
 
 return_type sRemove(int nparams, arg_type* a){
@@ -661,31 +625,15 @@ return_type sRemove(int nparams, arg_type* a){
     }
 
     char *user_ip = a->arg_val;
-    char *filepath = a->next->arg_val;
-
-    if (authenticate(user_ip) == 0) {
-        return error_val;
-    }
-
-    int fd = open(filepath, O_RDONLY);
-
-    OpenedFile *op_current = op_head;
-    while (op_current != NULL) {
-        if (op_current->fd == fd) {
-            return error_val;
-        }
-        op_current = op_current->next;
-    }
+    char *filepath = a->next->arg_val;    
 
     int stat = remove(filepath);
 
     if (stat == 0) {
-        r.return_val = 0;
-        r.return_size = sizeof(int);
-        return r;
+        return createReturn(0);
+    }else{
+        return createReturn(-1);
     }
-
-    return error_val;
 }
 
 int main(int argc, char *argv[]) {
@@ -697,7 +645,7 @@ int main(int argc, char *argv[]) {
     register_procedure("sOpen", 4, sOpen);
     register_procedure("sClose", 3, sClose);
     register_procedure("sRead", 4, sRead);
-    register_procedure("sWrite", 4, sWrite);
+    register_procedure("sWrite", 5, sWrite);
     register_procedure("sRemove", 2, sRemove);
 
     strcpy(serverAlias, argv[1]);

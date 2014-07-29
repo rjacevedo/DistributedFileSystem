@@ -348,8 +348,6 @@ int fsOpen(const char *fname, int mode) {
 
         sleep(1);
     }
-
-    return -1;
 }
 
 int fsClose(int fd) {
@@ -383,6 +381,11 @@ int fsRead(int fd, void *buf, const unsigned int count) {
     OpenFile *of = findOpenFile(fd);
     char *alias = findRootName(of->alias);
     ClientMount *current_mount = findMount(alias);
+
+    if(current_mount == NULL){
+        return -1;
+    }
+
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRead", 4, strlen(interfaceip)+1, interfaceip,
         sizeof(int), &fd, sizeof(int), &count, strlen(alias)+1, (void *) alias);
 
@@ -397,42 +400,46 @@ int fsRead(int fd, void *buf, const unsigned int count) {
     }
 }
 
-/*int fsWrite(int fd, const void *buf, const unsigned int count) {
+int fsWrite(int fd, const void *buf, const unsigned int count) {
     char *interfaceip = obtaininterfaceip("wlan0");
     OpenFile *of = findOpenFile(fd);
-    char *rootname = findRootName(of->filepath);
-    ClientMount *current_mount = findMount(rootname);
-    free(rootname);
+    char *alias = findRootName(of->alias);
+    ClientMount *current_mount = findMount(alias);
 
-    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sWrite", 4, strlen(interfaceip)+1, (void *)interfaceip,
-        sizeof(int), fd, sizeof(buf), buf, sizeof(int), count);
-
-    if(*(int *)ans.return_val > 0){
-        return *(int *)ans.return_val;
+    if(current_mount == NULL){
+        return -1;
     }
 
-    return -1;
-}*/
+    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sWrite", 4, strlen(interfaceip)+1, (void *)interfaceip,
+        sizeof(int), &fd, count, buf, sizeof(int), count, strlen(alias)+1, alias);
 
-// int fsRemove(const char *name) {
-//     char *interfaceip = obtaininterfaceip("wlan0");
-//     char *rootname = findRootName(name);
-//     ClientMount *current_mount = findMount(rootname);
-//     free(rootname);
+    if(*(int *)ans.return_val > 0){
+        int val = *(int *)ans.return_val;
+        free(ans.return_val);
+        return val;
+    }else{
+        free(ans.return_val);
+        return -1;    
+    }
+}
 
-//     int fd = findFileDesriptor(name);
+int fsRemove(const char *name) {
+    char *interfaceip = obtaininterfaceip("wlan0");
+    char *alias = findRootName(name);
+    char *filepath = createFilepath((char *)name, alias);
+    ClientMount *current_mount = findMount(alias);
+    ClientMount *mounted = findMount(alias);
+    if (mounted == NULL) {
+        return -1;
+    }
 
-//     if (fd == -1)
-//         return -1;
+    return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRemove", 2, strlen(interfaceip)+1, (void *)interfaceip,
+        strlen(filepath)+1, filepath);
 
-//     FSDIR *fsdir = findFSDIR(current_mount, name);
-
-//     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRemove", 2, strlen(interfaceip)+1, (void *)interfaceip,
-//         sizeof(int), fd);
-
-//     if (*(int *)ans.return_val == 0) {
-//         return removeOpenFile(fd);
-//     }
-
-//     return -1;
-// }
+    if (*(int *)ans.return_val == 0) {
+        free(ans.return_val);
+        return 0;
+    }else{
+        return -1;
+    }
+}
