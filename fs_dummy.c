@@ -20,7 +20,7 @@
 #include "ece454_fs.h"
 #include "ece454rpc_types.h"
 
-bool debug = true;
+bool debug = false;
 
 OpenFile *of_head = NULL;
 ClientMount *m_head = NULL;
@@ -159,12 +159,12 @@ int removeMount(const char *localFolderName) {
 
 int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *localFolderName) {
     char *interfaceip = obtaininterfaceip("wlan0");
-    printf("interfaceip: %s\n", interfaceip);
+    if(debug)printf("interfaceip: %s\n", interfaceip);
 
     return_type ans = make_remote_call(srvIpOrDomName,
         srvPort, "sMount", 2, strlen(interfaceip)+1, (void *) interfaceip, strlen(localFolderName)+1, (void *)localFolderName);
 
-    printf("finished making rpc\n");
+    if(debug)printf("finished making rpc\n");
 
     if(*(int *)ans.return_val == 0){
         free(ans.return_val);

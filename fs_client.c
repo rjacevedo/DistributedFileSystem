@@ -35,15 +35,11 @@ int main(int argc, char *argv[]) {
 
     if(argc > 1) {
         dirname = argv[1];
-        printf("hello, is it me you're looking for\n");
-        // printf("%s\n", dirname);
     }
     else {
         dirname = (char *)calloc(strlen(".")+1, sizeof(char));
         strcpy(dirname, ".");
     }
-
-    printf("%s\n", dirname);
 
     printf("fsMount(): %d\n", fsMount(argv[2], atoi(argv[3]), dirname));
     
@@ -78,7 +74,6 @@ int main(int argc, char *argv[]) {
     if(fsRead(ff, (void *)fname, 10) < 0) {
 	    perror("fsRead"); exit(1);
     }
-    printf("the buffer read %s\n", fname);
 
     int i;
     for(i = 0; i < 10; i++) {

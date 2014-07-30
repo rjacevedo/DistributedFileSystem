@@ -9,7 +9,7 @@
 #include "ece454rpc_types.h"
 #include "ece454_fs.h"
 //#include "simplified_rpc/server_stub.c"
-bool debug = true;
+bool debug = false;
 //should have linked list for mounted and opened files
 typedef struct MountedUser {
   char ip [256];
@@ -459,7 +459,7 @@ return_type sOpen(const int nparams, arg_type* a){
     char *filepath = (char *)a->next->next->arg_val;
     char *fullpath = prependRootName(filepath);
 	int mode = *(int *)a->next->next->next->arg_val;
-    printf("fullpath on server: %s\n", fullpath);
+    if(debug)printf("fullpath on server: %s\n", fullpath);
 
     if (checkFileInUse(fullpath) == 1){
         if(debug)printf("file in use");
