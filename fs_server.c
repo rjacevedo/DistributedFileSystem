@@ -9,7 +9,7 @@
 #include "ece454rpc_types.h"
 #include "ece454_fs.h"
 //#include "simplified_rpc/server_stub.c"
-bool debug = false;
+bool debug = true;
 //should have linked list for mounted and opened files
 typedef struct MountedUser {
   char ip [256];
@@ -190,23 +190,27 @@ char *findRootName(const char *fullpath) {
     return localFolderName;
 }
 
-return_type createReturn(int value) {    
+return_type createReturn(int error_num, int value) {    
     int val = value;
-    void *buff = malloc(sizeof(int));
-    memcpy(buff, &val, sizeof(int));
+    int err = error_num;
+    void *buff = malloc(sizeof(int) * 2);
+    void *ptr = buff;
+    memcpy(ptr, &err, sizeof(int));
+    ptr += sizeof(int);
+    memcpy(ptr, &val, sizeof(int));
 
-    r.return_size = sizeof(int);
+    r.return_size = sizeof(int) * 2;
     r.return_val = buff;
     return r;
 }
 
 //nparams: user_ip
 return_type sMount(const int nparams, arg_type* a) {	
-    if (nparams != 2) {
-		r.return_val = NULL;
-		r.return_size = 0;
-		return r;
-	}
+ //    if (nparams != 2) {
+	// 	r.return_val = NULL;
+	// 	r.return_size = 0;
+	// 	return r;
+	// }
 
     char *user_ip = (char *)a->arg_val;
     char *alias  = (char *)a->next->arg_val;
@@ -217,23 +221,23 @@ return_type sMount(const int nparams, arg_type* a) {
     if(debug)printMount();
     if (mounted != NULL) {
         if(debug) printf("Mounted is not NULL\n");
-        return createReturn(-1);
+        return createReturn(13, -1);
     }
 
     addMount(user_ip, alias);
 
-    return createReturn(0);
+    return createReturn(0, 0);
 }
 
 //nparams: user_ip
 return_type sUnmount(const int nparams, arg_type* a) {
 
     if(debug)printf("recevied %d nparams in sUnmount\n", nparams);
-	if (nparams != 2) {
-		r.return_val = NULL;
-		r.return_size = 0;
-		return r;
-	}
+	// if (nparams != 2) {
+	// 	r.return_val = NULL;
+	// 	r.return_size = 0;
+	// 	return r;
+	// }
 
 	char *user_ip = (char *)a->arg_val;
     char *alias = (char *)a->next->arg_val;
@@ -242,24 +246,24 @@ return_type sUnmount(const int nparams, arg_type* a) {
 
     if (found == NULL) {
         if(debug)printf("found is null in sUnmount\n");
-        return createReturn(-1);
+        return createReturn(1, -1);
     }
 
     if (removeMount(user_ip, alias) != 0) {
         if(debug)printf("problem with removeMount\n");
-        return createReturn(-1);
+        return createReturn(1, -1);
     }
     if(debug)printf("returning a good value from sUnmount\n");
-    return createReturn(0);
+    return createReturn(0, 0);
 }
 
 //nparams: user_ip -> filepath
 return_type sOpenDir(int nparams, arg_type* a) {
-    if (nparams != 3) {
-		r.return_val = NULL;
-		r.return_size = 0;
-		return r;
-	}
+ //    if (nparams != 3) {
+	// 	r.return_val = NULL;
+	// 	r.return_size = 0;
+	// 	return r;
+	// }
 
     char *user_ip = (char *)(a->arg_val);
     char *alias = (char *)(a->next->arg_val);
@@ -270,24 +274,28 @@ return_type sOpenDir(int nparams, arg_type* a) {
     MountedUser *mounted = findMount(user_ip, alias);
 
     if (mounted == NULL){
-        return createReturn(-1);
+        printf("exit 5\n");
+        return createReturn(1, -1);
     }
 
     if (findOpenFolder(mounted, new_path) != NULL){
-        return createReturn(-1);
+        printf("exit 4\n");
+        return createReturn(2, -1);
     }
 
     DIR *d = NULL;
     d = opendir(new_path);
     
     if(d == NULL){
-        return createReturn(-1);
+        printf("exit 1\n");
+        return createReturn(errno, -1);
     }
 
     // if(debug)printf("trying to add the open folder\n");
     if (addOpenFolder(mounted, new_path, d) != 0) {
         closedir(d);
-        return createReturn(-1);
+        printf("exit 2\n");
+        return createReturn(1, -1);
     }
 
     // if(debug)printf("weird stuff\n");
@@ -295,7 +303,8 @@ return_type sOpenDir(int nparams, arg_type* a) {
     new_open->storedDir = d;
 
     if(debug)printf("return from sOpenDir\n");
-    return createReturn(0);
+    printf("exit 3\n");
+    return createReturn(0, 0);
 }
 
 
@@ -329,11 +338,11 @@ int removeOpenFolder(MountedUser *mount, char *fullpath) {
 //params: filepath
 return_type sCloseDir(int nparams, arg_type* a){
     
-    if (nparams != 3) {
-		r.return_val = NULL;
-		r.return_size = 0;
-		return r;
-	}
+ //    if (nparams != 3) {
+	// 	r.return_val = NULL;
+	// 	r.return_size = 0;
+	// 	return r;
+	// }
 
 	char *user_ip = (char *)a->arg_val;
     char *alias = (char *)a->next->arg_val;
@@ -349,7 +358,7 @@ return_type sCloseDir(int nparams, arg_type* a){
 
     if (mounted == NULL) {
         if(debug)printf("Mounted is NULL\n");
-        return createReturn(-1);
+        return createReturn(2, -1);
     }
 
     OpenedFolder *openfolder = findOpenFolder(mounted, fullpath);
@@ -357,24 +366,24 @@ return_type sCloseDir(int nparams, arg_type* a){
     
     if (openfolder == NULL){
         if(debug)printf("open folder is not open\n");
-        return createReturn(-1);
+        return createReturn(2, -1);
     }
 
     if (removeOpenFolder(mounted, fullpath) != 0) {
         if(debug)printf("remove folder not working\n");
-        return createReturn(-1);
+        return createReturn(2, -1);
     }
 
-    return createReturn(0);
+    return createReturn(0, 0);
 
 }
 
 return_type sReadDir(const int nparams, arg_type* a){
-    if(nparams != 3){
-        r.return_val = NULL;
-        r.return_size = 0;
-        return r;
-    }
+    // if(nparams != 3){
+    //     r.return_val = NULL;
+    //     r.return_size = 0;
+    //     return r;
+    // }
     
     char *user_ip = (char *)a->arg_val;
     char *alias = (char *)a->next->arg_val;
@@ -384,18 +393,17 @@ return_type sReadDir(const int nparams, arg_type* a){
     MountedUser *mounted = findMount(user_ip, alias);
 
     if(mounted == NULL){
-        return createReturn(-1);
+        return createReturn(1, -1);
     }
 
     OpenedFolder *openfolder = findOpenFolder(mounted, prependRootName(filepath));
 
     struct dirent *readDirectory = readdir(openfolder->storedDir);
 
+
     if(readDirectory == NULL){
         if(debug)printf("in sReadDir: reading the directory is NULL\n");
-        r.return_val = NULL;
-        r.return_size = 0;
-        return r;
+        return createReturn(1, -1);
     }   
 
     struct fsDirent *fsdir = (struct fsDirent*)malloc(sizeof(struct fsDirent));
@@ -414,8 +422,20 @@ return_type sReadDir(const int nparams, arg_type* a){
     strcpy(fsdir->entName, readDirectory->d_name);
     if(debug)printf("fsdir->entName = %s\n", fsdir->entName);
     if(debug)printf("fsdir->entType = %d\n", fsdir->entType);
-    r.return_val = fsdir;
-    r.return_size = sizeof(struct fsDirent);
+    
+    void *returnBuff = malloc(sizeof(struct fsDirent)+sizeof(int));
+    void *ptr = returnBuff;
+
+    int val = 0;
+    void *buff = malloc(sizeof(int));
+    memcpy(buff, &val, sizeof(int));
+    
+    memcpy(ptr, buff, sizeof(int));
+    ptr += sizeof(int);
+    memcpy(ptr, fsdir, sizeof(struct fsDirent));
+    r.return_val = returnBuff;
+    r.return_size = sizeof(struct fsDirent) + sizeof(int);
+
     return r;
 }
 
@@ -448,11 +468,11 @@ OpenedFile *findOpenFile(char *user_ip, char *alias, char *fullpath) {
 
 //params: user_ip -> filepath -> mode
 return_type sOpen(const int nparams, arg_type* a){
-	if (nparams != 4) {
-		r.return_val = NULL;
-		r.return_size = 0;
-		return r;
-	}
+	// if (nparams != 4) {
+	// 	r.return_val = NULL;
+	// 	r.return_size = 0;
+	// 	return r;
+	// }
 
 	char *user_ip = (char *)a->arg_val;
     char *alias = (char *)a->next->arg_val;
@@ -463,13 +483,13 @@ return_type sOpen(const int nparams, arg_type* a){
 
     if (checkFileInUse(fullpath) == 1){
         if(debug)printf("file in use");
-        return createReturn(-1);
+        return createReturn(26, -1);
     }
 
     // Check if user is mounted
     MountedUser *mounted = findMount(user_ip, alias);
     if (mounted == NULL){
-        return createReturn(-1);
+        return createReturn(1, -1);
     }
 
     // If the file does not exist or is a folder return error
@@ -478,12 +498,12 @@ return_type sOpen(const int nparams, arg_type* a){
     if(debug)printf("errval: %d\n", err);
 	if (err == -1 && mode == 0){
         if(debug)printf("cannot open in read mode\n");
-        return createReturn(0);
+        return createReturn(err, 0);
     }
 
 	if (S_ISDIR(buffer.st_mode)){
         if(debug)printf("wtf its a folder\n");
-        return createReturn(0);
+        return createReturn(21, 0);
     }
 
 	int fd;
@@ -498,9 +518,9 @@ return_type sOpen(const int nparams, arg_type* a){
 	if (addOpenFile(user_ip, alias, fd, fullpath) != 0){
         if(debug)printf("closing the file descriptor %d because of error\n", fd);
         close(fd);
-        return createReturn(-1);
+        return createReturn(1, -1);
     }
-	return createReturn(fd);
+	return createReturn(0, fd);
 }
 
 int removeOpenFile(char *user_ip, char *alias, int fd) {
@@ -530,11 +550,11 @@ int removeOpenFile(char *user_ip, char *alias, int fd) {
 
 //nparams: user_ip -> fd
 return_type sClose(int nparams, arg_type* a) {
-	if (nparams != 3) {
-		r.return_val = NULL;
-		r.return_size = 0;
-		return r;
-	}
+	// if (nparams != 3) {
+	// 	r.return_val = NULL;
+	// 	r.return_size = 0;
+	// 	return r;
+	// }
 
     char *user_ip = (char *)a->arg_val;
 	char *alias = (char *)a->next->arg_val;
@@ -543,23 +563,23 @@ return_type sClose(int nparams, arg_type* a) {
     // Check if user is mounted
     MountedUser *mounted = findMount(user_ip, alias);
     if (mounted == NULL){
-        return createReturn(-1);
+        return createReturn(1, -1);
     }
 
     if (removeOpenFile(user_ip, alias, fd) != 0){
-        return createReturn(-1);
+        return createReturn(1, -1);
     }
 
-    return createReturn(0);
+    return createReturn(0, 0);
 }
 
 //nparams: user_ip -> fd -> buf -> count -> alias
 return_type sRead(int nparams, arg_type* a) {
-    if (nparams != 4) {
-		r.return_val = NULL;
-		r.return_size = 0;
-		return r;
-	}
+ //    if (nparams != 4) {
+	// 	r.return_val = NULL;
+	// 	r.return_size = 0;
+	// 	return r;
+	// }
 
     char *user_ip = (char *)a->arg_val;
 	int fd = *(int *)a->next->arg_val;
@@ -568,7 +588,7 @@ return_type sRead(int nparams, arg_type* a) {
 
     MountedUser *mounted = findMount(user_ip, alias);
     if (mounted == NULL){
-        return createReturn(-1);
+        return createReturn(1, -1);
     }
 
     int bytesRead = -1;
@@ -580,24 +600,35 @@ return_type sRead(int nparams, arg_type* a) {
     if(debug)printf("bytesread is %d, count is %d\n", bytesRead, count);
     
     if(debug)printf("sending back the buffer %s\n", buff);
+
     if(bytesRead > 0){
-        r.return_val = buff;
-        r.return_size = bytesRead;
+        void *returnBuff = malloc(bytesRead+sizeof(int));
+
+        int val = 0;
+        void *temp = malloc(sizeof(int));
+        memcpy(temp, &val, sizeof(int));
+
+        void *ptr = returnBuff;
+        memcpy(ptr, temp, sizeof(int));
+        ptr += sizeof(int);
+        memcpy(ptr, buff, bytesRead);
+        r.return_val = returnBuff;
+        r.return_size = bytesRead + sizeof(int);
         return r;
     }else{
-        r.return_val = NULL;
-        r.return_size = 0;
+        r.return_val = &errno;
+        r.return_size = sizeof(int);
         return r;
     }
 }
 
 return_type sWrite(int nparams, arg_type* a){
     if(debug)printf("got into sWrite\n");
-    if (nparams != 5) {
-		r.return_val = NULL;
-		r.return_size = 0;
-		return r;
-	}
+ //    if (nparams != 5) {
+	// 	r.return_val = NULL;
+	// 	r.return_size = 0;
+	// 	return r;
+	// }
 
     char *user_ip = (char *)a->arg_val;
 	int fd = *(int *)a->next->arg_val;
@@ -607,24 +638,24 @@ return_type sWrite(int nparams, arg_type* a){
 
     MountedUser *mounted = findMount(user_ip, alias);
     if (mounted == NULL){
-        return createReturn(-1);
+        return createReturn(1, -1);
     }
 	
     int bytesWritten = -1;
     bytesWritten = write(fd, buff, count);
 
     if(bytesWritten > 0){
-        return createReturn(bytesWritten);
+        return createReturn(0, bytesWritten);
     }else{
-        return createReturn(-1);
+        return createReturn(errno, -1);
     }
 }
 
 return_type sRemove(int nparams, arg_type* a){
-    if (nparams != 2) {
-        r.return_val = NULL;
-        r.return_size = 0;
-    }
+    // if (nparams != 2) {
+    //     r.return_val = NULL;
+    //     r.return_size = 0;
+    // }
 
     char *user_ip = a->arg_val;
     char *filepath = a->next->arg_val; 
@@ -633,9 +664,9 @@ return_type sRemove(int nparams, arg_type* a){
     int stat = remove(fullpath);
 
     if (stat == 0) {
-        return createReturn(0);
+        return createReturn(0, 0);
     }else{
-        return createReturn(-1);
+        return createReturn(errno, -1);
     }
 }
 

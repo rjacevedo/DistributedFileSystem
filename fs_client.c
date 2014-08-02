@@ -46,6 +46,7 @@ int main(int argc, char *argv[]) {
     }
 
     struct fsDirent *fdent = NULL;
+
     for(fdent = fsReadDir(fd); fdent != NULL; fdent = fsReadDir(fd)) {
 	printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));
     }
