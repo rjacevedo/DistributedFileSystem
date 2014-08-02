@@ -3,8 +3,8 @@ OBJECTS := $(patsubst %.c,%.o,$(wildcard *.c))
 server: libstubs.a fs_server.o
 	gcc fs_server.o -g -O0 -L. -lstubs -o server
 
-client: libstubs.a fs_dummy.o fs_client.o
-	gcc fs_dummy.o fs_client.o -g -O0 -L. -lstubs -o client
+client-api.a: libstubs.a fs_client-api.o fs_client.o
+	gcc fs_client-api.o fs_client.o -g -O0 -L. -lstubs -o client
 
 $(OBJECTS): %.o: %.c ece454_fs.h
 	gcc -g -c $< -o $@
