@@ -20,7 +20,7 @@
 #include "ece454_fs.h"
 #include "ece454rpc_types.h"
 
-bool debug = false;
+bool debug = true;
 
 OpenFile *of_head = NULL;
 ClientMount *m_head = NULL;
@@ -157,6 +157,13 @@ int removeMount(const char *localFolderName) {
     return removed;
 }
 
+int extractReturn(void *buff){
+    void *ptr = buff;
+    int err;
+    memcpy(&err, ptr, sizeof(int));
+    return err;
+}
+
 int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *localFolderName) {
     char *interfaceip = obtaininterfaceip("wlan0");
     if(debug)printf("interfaceip: %s\n", interfaceip);
@@ -166,11 +173,13 @@ int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *
 
     if(debug)printf("finished making rpc\n");
 
-    if(*(int *)ans.return_val == 0){
+    int err = extractReturn(ans.return_val);
+    if(err == 0){
         free(ans.return_val);
         return addMount(srvIpOrDomName, srvPort, localFolderName);
     }
     
+    errno = err;
     return -1;
 }
 
@@ -189,11 +198,13 @@ int fsUnmount(const char *localFolderName) {
 
     if(debug)printf("fsUnmount ans : %p\n", ans.return_val);
 
-    if(*(int *)ans.return_val == 0){
+    int err = extractReturn(ans.return_val);
+    if(err == 0){
         free(ans.return_val);
         return removeMount(localFolderName);
     }
     
+    errno = err;
     return -1;
 }
 
@@ -224,8 +235,8 @@ FSDIR* fsOpenDir(const char *folderName) {
     return_type ans = make_remote_call(mounted->ipOrDomName, 
         mounted->port, "sOpenDir", 3, strlen(interfaceip)+ 1, (void *)interfaceip, strlen(alias)+1, (void *)alias, strlen(folderpath)+ 1, (void *) folderpath);
 
-
-    if (*(int *)ans.return_val == 0) {
+    int err = extractReturn(ans.return_val);
+    if (err == 0) {
         if(debug)printf("in fsOpenDir: returning FSDIR\n");
         FSDIR *newfsdir = malloc(sizeof(FSDIR));
         strcpy(newfsdir->path, folderName);
@@ -258,14 +269,20 @@ int fsCloseDir(FSDIR *folder) {
         strlen(folderpath)+1, (void *)folderpath);
 
     // free(alias);
+    int err = extractReturn(ans.return_val);
+    printf("WHAT IS ERR: %d\n", err);
+    if(err == 0){
+        void *ptr = ans.return_val;
+        ptr += sizeof(int);
 
-    if(*(int *)ans.return_val == 0){
-        int val = *(int *)ans.return_val;
+        int val = *(int *)ptr;
+        printf("WHAT IS VAL: %d\n", val);
         free(ans.return_val);
         return val;
     }
 
     free(ans.return_val);
+    errno = err;
     return -1;
 }
 
@@ -283,14 +300,19 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
     return_type ans = make_remote_call(mounted->ipOrDomName, mounted->port, "sReadDir", 3, strlen(interfaceip)+1, (void *)interfaceip, strlen(alias)+1, (void *)alias,
         strlen(folderpath)+1, (void *)folderpath);
 
-    if (ans.return_val != NULL) {
+    int err = extractReturn(ans.return_val);
+    printf("the value of err %d\n", err);
+    if (err == 0) {
+        void *ptr = ans.return_val;
+        ptr += sizeof(int);
         struct fsDirent *fsdirent = malloc(sizeof(struct fsDirent));
-        memcpy(fsdirent, ans.return_val, ans.return_size);
+        memcpy(fsdirent, ptr, ans.return_size - sizeof(int));
         free(ans.return_val);
         return fsdirent;
     }
     if(debug)printf("fsReadDir returned NULL\n");
     free(ans.return_val);
+    errno = err;
     return NULL;
 }
 
@@ -334,16 +356,20 @@ int fsOpen(const char *fname, int mode) {
             strlen(filepath)+1, (void *)filepath, sizeof(int), &mode);
 
         if(debug)printf("return val is %d\n", *(int *)ans.return_val);
-        if(*(int *)ans.return_val > 0) {
-            addOpenFile(*(int *)ans.return_val, alias);
-            int val = *(int *)ans.return_val;
+        int err = extractReturn(ans.return_val);
+        if(err == 0) {
+            void *ptr = ans.return_val;
+            ptr += sizeof(int);
+
+            addOpenFile(*(int *)ptr, alias);
+            
+            int val = *(int *)ptr;
             free(ans.return_val);
             if(debug)printf("this is a test, the return_val is %d\n", val);
             return val;
-        }else if(*(int *)ans.return_val == 0){
+        }else {
             if(debug)printf("cannot open file!\n");
             free(ans.return_val);
-            return -1;
         }
 
         sleep(1);
@@ -369,10 +395,13 @@ int fsClose(int fd) {
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sClose", 3, strlen(interfaceip)+1, interfaceip,
         strlen(of->alias)+1, (void *)of->alias, sizeof(int), &fd);
 
-    if(*(int *)ans.return_val == 0){
+
+    int err = extractReturn(ans.return_val);
+    if(err == 0){
         return 0;
     }
     
+    errno = err;
     return -1;
 }
 
@@ -386,20 +415,26 @@ int fsRead(int fd, void *buf, const unsigned int count) {
         if(debug)printf("mount in fsRead is null\n");
         return -1;
     }
-
+    
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRead", 4, strlen(interfaceip)+1, interfaceip,
         sizeof(int), &fd, sizeof(int), &count, strlen(alias)+1, (void *) alias);
 
-    if(ans.return_val != NULL){
+    int err = extractReturn(ans.return_val);
+
+    if(err == 0){
+        void *ptr = ans.return_val;
+        ptr += sizeof(int);
         memset(buf, 0, count);
-        memcpy(buf, ans.return_val, ans.return_size);
+        memcpy(buf, ptr, ans.return_size - sizeof(int));
         free(ans.return_val);
-        return ans.return_size;
+        return ans.return_size = sizeof(int);
     }else{
+        errno = err;
         if(debug)printf("could not read\n");
         free(ans.return_val);
         return -1;
     }
+
 }
 
 int fsWrite(int fd, const void *buf, const unsigned int count) {
@@ -414,12 +449,18 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
 
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sWrite", 5, strlen(interfaceip)+1, (void *)interfaceip,
         sizeof(int), &fd, count, buf, sizeof(int), &count, strlen(alias)+1, alias);
-    if(*(int *)ans.return_val > 0){
-        int val = *(int *)ans.return_val;
+    
+    int err = extractReturn(ans.return_val);
+
+    if(err == 0){
+        void *ptr = ans.return_val;
+        ptr += sizeof(int);
+        int val = *(int *)ptr;
         free(ans.return_val);
         if(debug)printf("bytes written in fsWrite is %d\n", val);
         return val;
     }else{
+        errno = err;
         free(ans.return_val);
         return -1;    
     }
@@ -439,11 +480,14 @@ int fsRemove(const char *name) {
     return_type ans = make_remote_call(current_mount->ipOrDomName, current_mount->port, "sRemove", 2, strlen(interfaceip)+1, (void *)interfaceip,
         strlen(filepath)+1, filepath);
 
+    int err = extractReturn(ans.return_val);
+
     if(debug)printf("return val in fsRemove of %d\n", *(int *)ans.return_val);
-    if (*(int *)ans.return_val == 0) {
+    if (err == 0) {
         free(ans.return_val);
         return 0;
     }else{
+        errno = err;
         return -1;
     }
 }

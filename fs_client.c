@@ -52,8 +52,8 @@ int main(int argc, char *argv[]) {
     printf("file successfully opened!\n");
 
     struct fsDirent *fdent = NULL;
-    for(fdent = fsReadDir(fd); fdent != NULL; fdent = fsReadDir(fd)) {
-		printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));
+    for(fdent = fsReadDir(fd); fdent != NULL; fdent = fsReadDir(fd))  {
+    	printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));
     }
 
     if(errno != 0) {
@@ -65,6 +65,7 @@ int main(int argc, char *argv[]) {
     // int ff = fsOpen("/dev/urandom", 0);
     int ff = fsOpen("test/urandom", 0);
     printf("the fd is %d\n", ff);
+
     if(ff < 0) {
 	   perror("fsOpen"); exit(1);
     }
