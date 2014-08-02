@@ -1,0 +1,20 @@
+OBJECTS := $(patsubst %.c,%.o,$(wildcard *.c))
+
+server: libstubs.a fs_server.o
+	gcc fs_server.o -g -O0 -L. -lstubs -o fsServer
+
+client-api.a: client.o helper.o mybind.o client_stub.o
+	ar r libclient-api.a client.o client_stub.o helper.o mybind.o
+
+client: client-api.a fs_client2.o
+	gcc fs_client2.o -g -O0 -L. -lclient-api -o client
+
+
+$(OBJECTS): %.o: %.c ece454_fs.h
+	gcc -g -c $< -o $@
+
+libstubs.a: server_stub.o client_stub.o helper.o mybind.o
+	ar r libstubs.a server_stub.o client_stub.o helper.o mybind.o
+
+clean:
+	rm -rf a.out *.o core client server *.a
